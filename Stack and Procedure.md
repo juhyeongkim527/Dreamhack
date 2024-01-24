@@ -3,9 +3,10 @@
 ## push val : val을 스택 최상단에 쌓음
 
 ### 연산
+```
 rsp -= 8  
 [rsp] = val
-
+```
 ### 예제
 ```
 [Register]
@@ -28,9 +29,10 @@ rsp = 0x7fffffffc3f8
 ## pop reg : 스택 최상단의 값을 꺼내서 reg에 대입
 
 ### 연산
+```
 reg = [rsp]  
 rsp += 8
-
+```
 ### 예제
 ```
 [Register]
@@ -64,9 +66,10 @@ rsp = 0x7fffffffc400
 ## call addr : addr에 위치한 프로시져 호출
 
 ### 연산
+```
 push return_address  
 jmp addr
-
+```
 ### 예제
 ```
 [Register]
@@ -101,9 +104,10 @@ rsp는 -=8을 해준 후(push) return address를 저장함 = `push return_addres
 ## leave: __스택프레임__ 정리
 
 ### 연산
+```
 mov rsp, rbp  
 pop rbp
-
+```
 ### 예제
 ```
 [Register]
