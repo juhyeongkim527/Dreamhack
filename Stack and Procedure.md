@@ -131,7 +131,7 @@ rbp = 0x7fffffffc500
 0x7fffffffc500 | 0x7fffffffc550 <= rbp
 ```
 `move rsp, rbp`에 따라 rbp가 가리키는 주소를 rsp가 가리키게 하고,  
-`pop rbp`에 따라 [rsp]=rsp가 현재 가리키는 데이터(call에서 rip를 통해 돌아가야 하는 return_address)를 rbp에 저장한 다음 rsp -= 8을 함
+`pop rbp`에 따라 [rsp]=rsp가 현재 가리키는 데이터(call에서 rip를 통해 돌아가야 하는 return_address)를 rbp에 저장한 다음 rsp -= 8을 함
 
 ### 스택프레임이란?
 
