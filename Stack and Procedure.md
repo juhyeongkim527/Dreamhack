@@ -55,7 +55,7 @@ rsp = 0x7fffffffc400
 0x7fffffffc408 | 0x0
 ```
 
-# 프로시저
+# Procedure
 * 특정 기능을 수행하는 코드 조각
 * c언어에서 함수에 대응
 * 반복되는 연산을 프로시저 호출로 대체할 수 있고, 이름을 붙일 수 있어서 코드 길이를 줄이고 가독성을 높일 수 있음
@@ -63,7 +63,7 @@ rsp = 0x7fffffffc400
 * Return 후 다시 실행 흐름으로 돌아와야 하므로 call 후 다음 명령어 주소(return address, 반환 주소)를 stack에 저장하고  
   프로시저로 stack에 저장된 return address에 rip를 이동시킴
 
-## call addr : addr에 위치한 프로시져 호출
+## call addr : addr에 위치한 프로시저 호출
 
 ### 연산
 ```
