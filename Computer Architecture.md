@@ -30,9 +30,11 @@ CPU가 처리해야하는 명렁어를 설계하는 분야
 * ARM
 * x86(32bit)
 * x86-64,x64(64bit)
-  * 여기서 n bit는 CPU 한번에 처리할 수 있는 비트 개수 = WORD
-  * x86-64 레지스터![x86-64 레지스터 이미지](https://dreamhack-lecture.s3.amazonaws.com/media/3989967ad96e63dbdcc95e58609a84caa679054b1db92b11fc959ca4b48d18aa.png)
-
+  * 여기서 n bit는 CPU 한번에 처리할 수 있는 비트 개수(WORD)이며 레지스터가 64비트로 이루어졌다는 의미임.
+  * 아래는 x86-64 레지스터 이미지![x86-64 레지스터 이미지](https://dreamhack-lecture.s3.amazonaws.com/media/3989967ad96e63dbdcc95e58609a84caa679054b1db92b11fc959ca4b48d18aa.png)
+  * 64비트 레지스터는 2^64개의 메모리 주소를 읽을 수 있기 때문에 64비트 레지스터의 메모리 주소 범위는  
+    0x0000000000000000~0xffffffffffffffff(16진수는 1자리에 4비트이므로 총 16자리)이며,  
+    최대 1TB 크기의 RAM을 가질 수 있으며(32bit 레지스터는 4GB까지), 참고로 메모리 주소는 하나 당 8bit(1byte) 크기를 가짐
 
 * x86은 32bit ISA를 통칭함 (8086, 80186, 80286 등으로 불렸기 때문에)
 * x86-64=AMD64(64bit)는 x86(32bit)와 호환되는 64bit ISA를 통칭함 (intel64, IA-32e도 x86-64로 통칭됨)
