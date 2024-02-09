@@ -28,6 +28,7 @@
 11     return 0;
 12}
 ```
+char형 포인터는 literal의 주소를 저장하기 때문에, index에 접근하여 값 변경 불가능(char이외의 자료형은 literal이 아니므로 가능)
 ## 예제 2
 ```
 char arr_str[] = "asd";
