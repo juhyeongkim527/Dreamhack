@@ -132,8 +132,7 @@ context.arch = "arm" # arm
 - 매우 편리한 기능이지만 정적으로 생성된 셸 코드는 셸 코드가 실행될 때의 메모리 상태를 반영하지 못함  
   또한, 프로그램에 따라 입력할 수 있는 셸 코드의 길이나, 구성 가능한 문자의 종류에 제한이 있을 수 있는데, 이런 조건들도 반영하기 어려움
   따라서 제약 조건이 존재하는 상황에서는 직접 셸 코드를 작성하는 것이 좋음
-
-- [x86-64 대상 셸 코드](https://docs.pwntools.com/en/stable/shellcraft/amd64.html)
+- [x86-64 대상 셸 코드](https://docs.pwntools.com/en/stable/shellcraft/amd64.html)
 
 ```
 #!/usr/bin/env python3
@@ -153,4 +152,26 @@ $ python3 shellcraft.py
     mov rax, 0x732f2f2f6e69622f
     ...
     syscall
+```
+
+## asm
+
+- pwntools의 어셈블 기능
+- 대상 아키텍처가 중요하기 때문에 `context.arch`를 지정해줘야함
+
+```
+#!/usr/bin/env python3
+# Name: asm.py
+
+from pwn import *
+context.arch = 'amd64' # 익스플로잇 대상 아키텍처 'x86-64'
+
+code = shellcraft.sh() # 셸을 실행하는 셸 코드
+code = asm(code)       # 셸 코드를 기계어로 어셈블
+print(code)
+```
+
+```
+$ python3 asm.py
+b'jhH\xb8/bin///sPH\x89\xe7hri\x01\x01\x814$\x01\x01\x01\x011\xf6Vj\x08^H\x01\xe6VH\x89\xe61\xd2j;X\x0f\x05'
 ```
