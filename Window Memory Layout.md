@@ -2,6 +2,7 @@
 
 # 프로세스 메모리 구조
 윈도우 PE 파일 = PE 헤더 + 1개 이상의 섹션
+![PE파일 구조](https://goo-gy.github.io/static/885b00e5fe788fcd3207a0308eeaf3c9/6af66/PE_file_memory.png)
 ## 섹션
 유사한 용도로 사용되는 데이터가 모여있는 영역
 
