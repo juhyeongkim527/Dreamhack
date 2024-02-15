@@ -2,9 +2,9 @@
 이번 워게임의 목표는 원격 서버의 `/home/shell_basic/flag_name_is_loooooong`에서 flag를 읽어오는 것이다.  
 그런데 여기서 제공된 문제의 shell_basic.c 파일을 보면 execuve, execveat 시스템 콜을 사용하지 못하도록 막아놨기 때문에, orw 쉘코드를 통해 해당 flag를 읽어오면 된다. 
 
-# 풀이 방법 1. c언어 skeleton 코드 이용
+## 풀이 방법 1. c언어 skeleton 코드 이용
 
-- **1.~5. 까지는 원격 서버에 shellcode를 전달하기 위한 부분이고 6.이 실제 공격 과정이다.**
+- **1.~5. 까지는 원격 서버에 byte code(opcode)를 추출하여 shellcode를 전달하기 위한 부분이고 6.이 실제 공격 과정이다.**
 
 1. 먼저 orw 쉘 코드를 작성 후 skeleton 코드를 통해 실행 파일(ELF) 파일을 생성한다.
 ```
@@ -86,7 +86,7 @@ p.sendlineafter('shellcode: ', shellcode)
 print(p.recvuntil(b'}'))
 ```
 
-# 풀이방법 2. 어셈블리어 코드(.asm) 작성
+## 풀이방법 2. 어셈블리어 코드(.asm) 작성
 
 1. 위에서 skeleton 코드를 작성한 것과 달리 어셈블리어 코드를 작성하여 object파일 생성 후 이를 통해 opcode를 얻는 방법이다. 이를 위해 .asm 코드를 작성해준다.
 ```
@@ -143,6 +143,8 @@ start:
 - `xxd -p orw.bin | sed 's/\(..\)/\\x\1/g | tr -d '\n'`도 가능
 
 5. 이후 과정은 python 파일 작성 부분으로 풀이 방법 1과 동일
+
+## 풀이방법 3. pwntools의 shellcraft를 사용
 
 ### 참고 정리
 
