@@ -31,7 +31,7 @@ p = process('./test')
 p.send(b'A') # ./test에 b'A'를 입력
 p.sendline(b'A') # ./test에 b'A' + b'\n'을 입력
 p.sendafter(b'hello', b'A') # ./test가 b'hello'를 출력하면, b'A'를 입력
-p.sendafterline(b'hello', b'A') # ./test가 hello를 출력하면 b'A' + b'\n'을 입력
+p.sendlineafter(b'hello', b'A') # ./test가 hello를 출력하면 b'A' + b'\n'을 입력
 ```
 
 ## recv
