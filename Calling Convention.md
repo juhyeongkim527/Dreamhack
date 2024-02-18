@@ -167,8 +167,71 @@ $1 = 123456789123456816
 ```
 
 7. `pop rbp`를 통해 현재 스택프레임의(callee) rsp 값에 저장되어 있는 기존 스택 프레임 (caller의 rbp) 값을 rbp에 저장하여 기존 스택 프레임(caller)으로 돌아간다.
+    - 위 예시에서는 stack frame의 확장이 없었기 때문에, `pop rbp`만 하는데 원래는 `leave`를 통해 스택 프레임을 정리함.
+    - `leave`는 1.`mov rsp, rbp`로 rsp를 rbp로 돌아오게 하고, 2.`pop rbp`로 rsp에 저장된 기존 스택프레임을 rbp에 대입하는 2단계를 거침
 8. `ret`을 통해 pop이후 rsp가 가리키고 있는 return address를 rip에 위치시키고, rsp를 한칸 줄인다. 
 
     - 이는 `pop rip` 와 같은 동작을 하지만 실제로 해당 instruction을 수행하는 것은 아님
 
 #### [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/Stack%20and%20Procedure.md)에서 calling convention을 시각적으로 확인하자.
+
+## x86 : cdecl
+
+앞서 언급했듯 x86 아키텍처는 레지스터의 수가 적으므로, 스택을 통해 인자를 전달한다.     
+또한, 인자를 전달하기 위해 사용한 스택을 호출자가 정리하는 특징이 있다. 스택을 통해 인자를 전달할 때는, 마지막 인자부터 첫 번째 인자까지 거꾸로 스택에 push한다.
+
+```
+// Name: cdecl.c
+// Compile: gcc -fno-asynchronous-unwind-tables -nostdlib -masm=intel \
+//          -fomit-frame-pointer -S cdecl.c -w -m32 -fno-pic -O0
+
+void __attribute__((cdecl)) callee(int a1, int a2){ // cdecl로 호출
+}
+
+void caller(){
+   callee(1, 2);
+}
+```
+
+```
+; Name: cdecl.s
+.file "cdecl.c"
+.intel_syntax noprefix
+.text
+.globl callee
+.type callee, @function
+callee:
+nop
+ret ; 스택을 정리하지 않고 리턴합니다.
+.size callee, .-callee
+.globl caller
+.type caller, @function
+caller:
+push 2 ; 2를 스택에 저장하여 callee의 인자로 전달합니다.
+push 1 ; 1를 스택에 저장하여 callee의 인자로 전달합니다.
+call callee
+add esp, 8 ; 스택을 정리합니다. (push를 2번하였기 때문에 8byte만큼 esp가 증가되어 있습니다.)
+nop
+ret
+.size caller, .-caller
+.ident "GCC: (Ubuntu 11.3.0-1ubuntu1~22.04.1) 11.3.0"
+.section .note.GNU-stack,"",@progbits
+```
+
+## 정리
+
+**x86 함수 호출 규약**
+
+|함수호출규약|사용 컴파일러|인자 전달 방식|스택 정리|적용|
+|-|-|-|-|-|
+|stdcall|MSVC|Stack|Callee|WINAPI|
+|cdecl|GCC, MSVC|Stack|Caller|일반 함수|
+|fastcall|MSVC|ECX, EDX|Callee|최적화된 함수|
+|thiscall|MSVC|ECX(인스턴스), Stack(인자)|Callee|클래스의 함수|
+
+**x86-64 함수 호출 규약**
+
+|함수호출규약|사용 컴파일러|인자 전달 방식|스택 정리|적용|
+|-|-|-|-|-|
+|MS ABI|MSVC|RCX, RDX, R8, R9|Caller|일반 함수, Windows Syscall|
+|System ABI|GCC|RDI, RSI, RDX, RCX, R8, R9, XMM0–7|Caller|일반 함수|
