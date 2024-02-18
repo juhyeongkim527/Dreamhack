@@ -167,6 +167,8 @@ $1 = 123456789123456816
 ```
 
 7. `pop rbp`를 통해 현재 스택프레임의(callee) rsp 값에 저장되어 있는 기존 스택 프레임 (caller의 rbp) 값을 rbp에 저장하여 기존 스택 프레임(caller)으로 돌아간다.
-8. 'ret'을 통해 pop이후 rsp가 가리키고 있는 return address를 rip에 위치시키고, rsp를 한칸 줄인다. 
+8. `ret`을 통해 pop이후 rsp가 가리키고 있는 return address를 rip에 위치시키고, rsp를 한칸 줄인다. 
 
     - 이는 `pop rip` 와 같은 동작을 하지만 실제로 해당 instruction을 수행하는 것은 아님
+
+#### [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/Stack%20and%20Procedure.md)에서 calling convention을 시각적으로 확인하자.
