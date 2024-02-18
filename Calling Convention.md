@@ -137,7 +137,7 @@ callee에서 아래의 코드처럼 ret을 다른데서 사용하지 않고 retu
        ull ret = a1 + a2 + a3 + a4 + a5 + a6 + a7;
        return ret;
        ```
-## 반환값 전달 및 기존 실행 흐름 복귀
+## 3. 반환값 전달 및 기존 실행 흐름 복귀
 ```
 pwndbg> b *callee+79
 Breakpoint 3 at 0x555555555178
@@ -169,10 +169,26 @@ $1 = 123456789123456816
 7. `pop rbp`를 통해 현재 스택프레임의(callee) rsp 값에 저장되어 있는 기존 스택 프레임 (caller의 rbp) 값을 rbp에 저장하여 기존 스택 프레임(caller)으로 돌아간다.
     - 위 예시에서는 stack frame의 확장이 없었기 때문에, `pop rbp`만 하는데 원래는 `leave`를 통해 스택 프레임을 정리함.
     - `leave`는 1.`mov rsp, rbp`로 rsp를 rbp로 돌아오게 하고, 2.`pop rbp`로 rsp에 저장된 기존 스택프레임을 rbp에 대입하는 2단계를 거침
-8. `ret`을 통해 pop이후 rsp가 가리키고 있는 return address를 rip에 위치시키고, rsp를 한칸 줄인다. 
+8. `ret`을 통해 바로 앞에서 했던 `pop rbp`이후 rsp가 가리키고 있는 return address를 rip에 위치시킨다.
+    - 이후 아래의 **4. 스택 정리**확인할 수 있듯이 caller가 사용한 callee에서 사용한 스택(return address를 저장하기 의해)을 정리한다. 스택 정리는 caller가 하기 때문
+    - 위 두 동작을 합치면 `pop rip` 와 같은 동작이다.
+  
+## 4. 스택 정리
+```
+   0x555555555183 <callee+90>                     pop    rbp
+   0x555555555184 <callee+91>                     ret
+    ↓
+   0x5555555551bc <caller+55>                     add    rsp, 8
+   0x5555555551c0 <caller+59>                     nop
+ ► 0x5555555551c1 <caller+60>                     leave
+   0x5555555551c2 <caller+61>                     ret
+    ↓
+   0x5555555551d5 <main+18>                       mov    eax, 0
+   0x5555555551da <main+23>                       pop    rbp
+   0x5555555551db <main+24>                       ret
+```
 
-    - 이는 `pop rip` 와 같은 동작을 하지만 실제로 해당 instruction을 수행하는 것은 아님
-
+9. 위와 같이 callee가 사용한 스택을 정리하기 위해 caller에서 `0x5555555551bc <caller+55>    add rsp, 8`를 해준다.
 #### [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/Stack%20and%20Procedure.md)에서 calling convention을 시각적으로 확인하자.
 
 ## x86 : cdecl
