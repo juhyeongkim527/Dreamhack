@@ -61,6 +61,7 @@ void caller() { callee(123456789123456789, 2, 3, 4, 5, 6, 7); }
 
 int main() { caller(); }
 ```
+## 1. 인자 전달 및 callee 호출
 ```
 $ gdb -q sysv
 pwndbg: loaded 139 pwndbg commands and 49 shell commands. Type pwndbg [--shell | --all] [filter] for a list.
@@ -95,6 +96,7 @@ Breakpoint 1, 0x0000555555555185 in caller ()
 2. 이후 `call   0x555555555129 <callee>`를 통해 <callee> 함수 instruction이 저장된 메모리 주소로 rip를 이동시킨다.
 3. 그리고 call과 동시에 stack에 <callee>가 **return 후 돌아올 주소(Return address)**를 push하여 저장한다.
 
+## 2. 기존 스택프레임(caller) 저장 및 새로운 스택 프레임(callee) 할당
 아래는 <caller+50>번 줄 이후 코드이다.
 ```
 pwndbg> x/9i $rip
@@ -124,6 +126,47 @@ $1 = (void *) 0x7fffffffe300
  
 ```
 
-1. 들어오게 되면 `push rbp`로, return 이후 기존 stack frame으로 돌아오기 위해 **caller의 rbp를 push**하여 저장한다.
-2. 그리고 `mov rbp, rsp`를 통해 rbp = rsp를 하여 rbp 위치를 rsp와 동일하게 만든다.
-3. 이후 rdi, rsi, ...와 stack에 차례대로 저장된 인자를 전달한다.
+4. 들어오게 되면 `push rbp`로, return 이후 기존 stack frame으로 돌아오기 위해 **caller의 rbp를 push**하여 저장한다.
+5. 그리고 `mov rbp, rsp`를 통해 rbp = rsp를 하여 rbp 위치를 rsp와 동일하게 만든다.
+6. 이후 rdi, rsi, ...와 stack에 차례대로 저장된 인자를 전달한다.
+   
+     - 여기서 지역변수 ret이 코드상으로는 존재하지만 새로운 스택 프레임을 push하여 더 추가하지 않는 이유는,   
+callee에서 아래의 코드처럼 ret을 다른데서 사용하지 않고 return 값으로 바로 넘기기 때문에 스택 프레임을 추가하지 않고 rax에 바로 저장하면 되기 때문이다.
+
+     - ```
+       ull ret = a1 + a2 + a3 + a4 + a5 + a6 + a7;
+       return ret;
+       ```
+## 반환값 전달 및 기존 실행 흐름 복귀
+```
+pwndbg> b *callee+79
+Breakpoint 3 at 0x555555555178
+pwndbg> c
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+ ► 0x555555555178 <callee+79>    add    rax, rdx
+   0x55555555517b <callee+82>    mov    qword ptr [rbp - 8], rax
+   0x55555555517f <callee+86>    mov    rax, qword ptr [rbp - 8]
+   0x555555555183 <callee+90>    pop    rbp
+   0x555555555184 <callee+91>    ret
+
+pwndbg> b *callee+91
+Breakpoint 4 at 0x555555555184
+pwndbg> c
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+   0x555555555178 <callee+79>    add    rax, rdx
+   0x55555555517b <callee+82>    mov    qword ptr [rbp - 8], rax
+   0x55555555517f <callee+86>    mov    rax, qword ptr [rbp - 8]
+   0x555555555183 <callee+90>    pop    rbp
+ ► 0x555555555184 <callee+91>    ret                                  <0x5555555551bc; caller+55>
+    ↓
+...
+pwndbg> print $rax
+$1 = 123456789123456816
+```
+
+7. `pop rbp`를 통해 현재 스택프레임의(callee) rsp 값에 저장되어 있는 기존 스택 프레임 (caller의 rbp) 값을 rbp에 저장하여 기존 스택 프레임(caller)으로 돌아간다.
+8. 'ret'을 통해 pop이후 rsp가 가리키고 있는 return address를 rip에 위치시키고, rsp를 한칸 줄인다. 
+
+    - 이는 `pop rip` 와 같은 동작을 하지만 실제로 해당 instruction을 수행하는 것은 아님
