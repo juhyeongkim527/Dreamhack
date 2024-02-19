@@ -34,6 +34,7 @@ hex나 int값으로 String을 저장하려고 한다면, 리틀엔디언에 맞�
 ### 참고 2. gdb에서 메모리에 저장된 순서
 
 아래의 사진은 `int str_hex = 0x434241;`이 저장된 메모리이다.
+
 <img width="391" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/02c007a9-76f3-4c4d-a149-c998bb083302">
 
 메모리에 이렇게 값이 저장되어 있을 때, 뒤에서부터 앞으로 읽는 것이 낮은 메모리부터 높은 메모리까지 읽는 것이다. 아래의 스크린샷으로 확인가능하다.
