@@ -52,8 +52,8 @@ data = p.recvall() # 프로세스가 종료될 때 까지 p가 출력하는 모�
 ```
 ## packing & unpacking
 
-- packing : 어떤 값을 **리틀 엔디언의 바이트 배열로** 변경
-- unpacking : 리틀 엔디언의 바이트 배열을 **어떤 값(hex, ASCII 등)으로** 변경
+- packing : 어떤 값을 **리틀 엔디언의 byte string 배열**로 변경
+- unpacking : 리틀 엔디언의 byte string 배열을 **정수**로 변경
 
 ```
 #!/usr/bin/env python3
