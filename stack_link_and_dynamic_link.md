@@ -67,6 +67,8 @@ SEARCH_DIR("=/usr/x86_64-linux-gnu/lib")
 
 동적 링크된 바이너리를 실행하면 **동적 라이브러리가 프로세스의 메모리에** 매핑된다. 그리고 실행중에 라이브러리의 함수를 호출하면 매핑된 라이브러리에서 호출할 함수의 주소를 찾고, 그 함수를 실행한다.
 
+![](https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2Fc1BYgt%2FbtrR9el15uI%2FrCsKnC4mp606Ex7edukL1k%2Fimg.png)
+
 ### 정적 링크
 
 정적 링크를 하면 **바이너리에 정적 라이브러리의 필요한 모든 함수가** 포함된다. 따라서, 해당 함수를 호출할 때 라이브러리를 참조하는 것이 아니라, 자신이 정의한 함수를 호출하는 것처럼 호출할 수 있다. 
@@ -74,6 +76,8 @@ SEARCH_DIR("=/usr/x86_64-linux-gnu/lib")
 동적 링크와 달리 라이브러리에서 원하는 함수를 찾지 않아도 되서 탐색의 비용이 절감될 수 있지만, 여러 바이너리에서 같은 라이브러리를 사용하면 동일한 라이브러리 복제가 여러 번 이루어지기 때문에 용량을 낭비하게 된다.
 
 ***정적 링크 시 컴파일 옵션에 따라 include 한 헤더의 함수가 모두 포함 될 수도 있고 그렇지 않을 수도 있다.***
+
+![](https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FPaufb%2FbtrR8zdbufz%2FlrdVMoqdq5SqBSzMTkjXWk%2Fimg.png)
 
 ## 실제 바이너리 비교
 
@@ -97,6 +101,8 @@ $ ls -lh ./static ./dynamic
 `static` 에서는 `puts` 함수의 정의가 존재하는 실제 메모리 주소를 호출하는 반면, `dynamic` 에서는 `put`의 `plt주소`를 호출한다.
 
 이러한 차이가 발생하는 이유는 정적 링크에서는 정적 라이브러리의 함수 자체를 바이너리에 포함시키지만, 동적 링크에서는 동적 라이브러리를 메모리에 매핑시킨 후 바이너리 실행 시 해당 매핑 메모리에서 함수의 주소를 **찾아야** 하기 때문이다.
+
+***동적 링크 시에 미리 메모리에 매핑된 동적 라이브러리에서 함수의 주소를 찾아서 기록해두지 않는 이유는 바이너리 실행마다 ASLR에 의해 동적 라이브러리의 메모리가 변할 수 있기 때문이다.***
 
 **static**
 ```
@@ -126,3 +132,126 @@ main:
 
 ## PLT & GOT
 
+**PLT(Procedure Linkage Table)** 와 **GOT(Global Offset Table)** 는 라이브러리에서 동적 링크된 **심볼의 주소를 찾을 때** 사용하는 테이블이다.
+
+바이너리가 실행될 때마다 ASLR에 따라 동적 라이브러리가 임의의 주소에 매핑되기 때문에(바뀌기 때문에) 링크 단계에서 미리 라이브러리의 주소를 하나로 확정지을 수 없다. 따라서, 심볼의 주소를 찾기 위해서는 심볼의 이름을 바탕으로 라이브러리에서 심볼들을 탐색하고, 해당 심볼의 정의를 발견하면 그 주소로 실행 흐름을 옮기게 된다. 이 전 과정을 통틀어 **runtime resolve**라고 하는데, 이에 대해서는 나중에 다시 알아보자.
+
+하지만, 여기서 라이브러리의 함수(심볼)가 바이너리에서 여러번 쓰인 경우 함수를 호출할 때 마다 라이브러리에서 계속 함수의 정의를 탐색해야 한다면 매우 비효율적일 것이다.   
+**그래서 ELF는 `GOT`라는 테이블을 두고 resolve된 심볼의 주소를 해당 테이블에 저장한다.** 그러면 같은 함수를 다시 호출할 때, GOT에 저장된 함수의 주소를 호출하여 다시 라이브러리를 탐색하는 비효율적인 작업을 없앨 수 있다.
+
+아래는 GOT를 확인하기 위한 예제 코드이다.
+```
+// Name: got.c
+// Compile: gcc -o got got.c -no-pie
+
+#include <stdio.h>
+
+int main() {
+  puts("Resolving address of 'puts'.");
+  puts("Get address from GOT");
+}
+```
+
+### resolve 되기 전
+
+먼저 got.c를 컴파일하고 실행한 직후에, **GOT의 상태를 보여주는 명령어인** `got`를 사용해보면, `puts` 함수의 GOT 엔트리인 `0x404018`에는 아직 `puts`의 주소를 찾기 전이므로 함수 주소 대신 .plt 섹션 어딘가의 주소인 `0x401030`이 적혀있다.
+
+```
+$ gdb ./got
+pwndbg> entry
+pwndbg> got
+GOT protection: Partial RELRO | GOT functions: 1
+[0x404018] puts@GLIBC_2.2.5 -> 0x401030 ◂— endbr64
+
+pwndbg> plt
+Section .plt 0x401020-0x401040:
+No symbols found in section .plt
+pwndbg>
+```
+
+`main()`에서 `puts@plt`를 호출하는 부분에 break를 걸고 run 후 si로 `puts@plt` 내부로 들어가면, resolve 전에는 위에서 확인했듯이 puts의 **GOT** 엔트리에 쓰인 값인 `0x401030`으로 실행 흐름을 옮긴다. 
+
+이후 계속 실행 흐름을 따라가면 `0x401020`으로 점프 후 `<_dl_runtime_resolve_fxsave>`함수의 주소로 점프하는 것을 알 수 있다.  
+해당 함수의 이름에서 알 수 있듯이 동적 링크 과정에서 resolve를 하는 함수라는 것을 유추할 수 있다.
+
+```
+pwndbg> b *main+18
+pwndbg> c
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+   0x40113e <main+8>     lea    rax, [rip + 0xebf]
+   0x401145 <main+15>    mov    rdi, rax
+ ► 0x401148 <main+18>    call   puts@plt                      <puts@plt>
+        s: 0x402004 ◂— "Resolving address of 'puts'."
+...
+pwndbg> si
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+ ► 0x401040       <puts@plt>                        endbr64
+   0x401044       <puts@plt+4>                      bnd jmp qword ptr [rip + 0x2fcd]     <0x401030>
+    ↓
+   0x401030                                         endbr64
+   0x401034                                         push   0
+   0x401039                                         bnd jmp 0x401020                     <0x401020>
+    ↓
+   0x401020                                         push   qword ptr [rip + 0x2fe2]      <_GLOBAL_OFFSET_TABLE_+8>
+   0x401026                                         bnd jmp qword ptr [rip + 0x2fe3]     <_dl_runtime_resolve_fxsave>
+    ↓
+   0x7ffff7fd8be0 <_dl_runtime_resolve_fxsave>      endbr64
+   0x7ffff7fd8be4 <_dl_runtime_resolve_fxsave+4>    push   rbx
+   0x7ffff7fd8be5 <_dl_runtime_resolve_fxsave+5>    mov    rbx, rsp
+   0x7ffff7fd8be8 <_dl_runtime_resolve_fxsave+8>    and    rsp, 0xfffffffffffffff0
+...
+```
+
+이후 `<_dl_runtime_resolve_fxsave+8>` 함수에 진입 후 `finish`를 통해 함수를 전부 수행 후 빠져나오면 `Resolving address of 'puts'.`라는 출력과 함께 `puts` 함수가 resolve 되었음을 확인할 수 있다.
+
+`got` 명령어로 확인해보면 **GOT 엔트리**인 `0x404018`에 이전과 달리 .plt 섹션이 아닌 실제 puts 함수의 주소인 `0x7ffff7e02ed0`이 기록되어 있는 것을 알 수 있다.
+
+```
+pwndbg> ni
+...
+pwndbg> ni
+_dl_runtime_resolve_fxsave () at ../sysdeps/x86_64/dl-trampoline.h:67
+67  ../sysdeps/x86_64/dl-trampoline.h: No such file or directory.
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+   0x401030                                          endbr64
+   0x401034                                          push   0
+   0x401039                                          bnd jmp 0x401020                     <0x401020>
+    ↓
+   0x401020                                          push   qword ptr [rip + 0x2fe2]      <_GLOBAL_OFFSET_TABLE_+8>
+   0x401026                                          bnd jmp qword ptr [rip + 0x2fe3]     <_dl_runtime_resolve_fxsave>
+    ↓
+ ► 0x7ffff7fd8be0 <_dl_runtime_resolve_fxsave>       endbr64
+   0x7ffff7fd8be4 <_dl_runtime_resolve_fxsave+4>     push   rbx
+   0x7ffff7fd8be5 <_dl_runtime_resolve_fxsave+5>     mov    rbx, rsp
+   0x7ffff7fd8be8 <_dl_runtime_resolve_fxsave+8>     and    rsp, 0xfffffffffffffff0
+   0x7ffff7fd8bec <_dl_runtime_resolve_fxsave+12>    sub    rsp, 0x240
+   0x7ffff7fd8bf3 <_dl_runtime_resolve_fxsave+19>    mov    qword ptr [rsp], rax
+...
+pwndbg> finish
+Run till exit from #0  _dl_runtime_resolve_fxsave () at ../sysdeps/x86_64/dl-trampoline.h:67
+Resolving address of 'puts'.
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+   0x401148 <main+18>    call   puts@plt                      <puts@plt>
+
+ ► 0x40114d <main+23>    lea    rax, [rip + 0xecd]
+   0x401154 <main+30>    mov    rdi, rax
+   0x401157 <main+33>    call   puts@plt                      <puts@plt>
+
+   0x40115c <main+38>    mov    eax, 0
+   0x401161 <main+43>    pop    rbp
+   0x401162 <main+44>    ret
+
+   0x401163              add    bl, dh
+...
+pwndbg> got
+GOT protection: Partial RELRO | GOT functions: 1
+[0x404018] puts@GLIBC_2.2.5 -> 0x7ffff7e02ed0 (puts) ◂— endbr64
+pwndbg> vmmap 0x7ffff7e02ed0
+LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
+             Start                End Perm     Size Offset File
+    0x7ffff7daa000     0x7ffff7f3f000 r-xp   195000  28000 /usr/lib/x86_64-linux-gnu/libc.so.6 +0x58ed0
+```
