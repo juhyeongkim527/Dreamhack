@@ -145,7 +145,6 @@ main:
 ```
 // Name: got.c
 // Compile: gcc -o got got.c -no-pie
-
 #include <stdio.h>
 
 int main() {
@@ -153,6 +152,8 @@ int main() {
   puts("Get address from GOT");
 }
 ```
+
+*** 참고로 나는 PLT없이도 GOT만으로 동적 링킹이 가능하다고 생각했는데, 함수 주소 찾는 것만으로는 기술적으로 GOT만 이용하여 가능하지만 함수 바인딩이나 최적화에서 PLT가 필요하다고 한다.***
 
 ### resolve 되기 전
 
