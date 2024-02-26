@@ -2,6 +2,8 @@ C의 표준 라이브러리인 `libc`는 우분트에 기본으로 탑재된 라
 
 ## Link
 
+![](https://bpsecblog.files.wordpress.com/2016/02/gote1848be185aaplt-1-e18480e185b3e18485e185b5e186b72.png)
+
 리눅스에서 C 소스 코드 컴파일 단계는 **전처리, 컴파일, 어셈블, 링크** 단계로 이루어진다. 
 
 해당 과정을 거쳐 소스 코드는 기계어 코드인 Object 파일(.o 확장자)로 번역되지만, 해당 Object 파일은 ELF 형식이지만 `executable`이 아닌 `relocatable` 형식으로 실제로 실행할 수 없다. 
@@ -257,6 +259,9 @@ LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
              Start                End Perm     Size Offset File
     0x7ffff7daa000     0x7ffff7f3f000 r-xp   195000  28000 /usr/lib/x86_64-linux-gnu/libc.so.6 +0x58ed0
 ```
+![](https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Ft1.daumcdn.net%2Fcfile%2Ftistory%2F183D6C384FA75CE924)
+
+![](https://blog.kakaocdn.net/dn/7JQnw/btq2Mz1JBcE/KIxbMlvMwcuWiY31ikausK/img.png)
 
 ### resolve 된 후
 
@@ -291,6 +296,9 @@ pwndbg> si
    0x7ffff7e02ee3 <puts+19>       call   *ABS*+0xa8720@plt                <*ABS*+0xa8720@plt>
 ...
 ```
+![](https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Ft1.daumcdn.net%2Fcfile%2Ftistory%2F114FE5384FA75CEA0A)
+
+![](https://blog.kakaocdn.net/dn/bQ0Qlg/btq2NEVyK9u/w6JdSGA8hi8CFDTbcy8GS0/img.png)
 
 ## PLT와 GOT 취약점을 이용한 공격 기법
 
