@@ -208,6 +208,8 @@ pwndbg> si
 
 `got` 명령어로 확인해보면 **GOT 엔트리**인 `0x404018`에 이전과 달리 .plt 섹션이 아닌 실제 puts 함수의 주소인 `0x7ffff7e02ed0`이 기록되어 있는 것을 알 수 있다.
 
+그리고 `vmmap`으로 GOT 엔트리에 저장된 주소를 살펴보면 `/usr/lib/x86_64-linux-gnu/libc.so.6 +0x58ed0`로 `libc` 랑비ㅡ러리의 `0x58ed0` offset만큼 떨어진 `puts` 함수가 저장되어 있다는 것을 알 수 있다.
+
 ```
 pwndbg> ni
 ...
@@ -255,3 +257,76 @@ LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
              Start                End Perm     Size Offset File
     0x7ffff7daa000     0x7ffff7f3f000 r-xp   195000  28000 /usr/lib/x86_64-linux-gnu/libc.so.6 +0x58ed0
 ```
+
+### resolve 된 후
+
+소스 코드에서 `puts@plt`를 두 번째로 호출할 때는 `puts`의 GOT 엔트리에 실제 `puts`의 주소인 `0x7ffff7e02ed0`가 쓰여있기 때문에 바로 `puts` 함수가 호출된다.
+
+```
+pwndbg> b *main+33
+pwndbg> c
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+   0x401148 <main+18>    call   puts@plt                      <puts@plt>
+
+   0x40114d <main+23>    lea    rax, [rip + 0xecd]
+   0x401154 <main+30>    mov    rdi, rax
+ ► 0x401157 <main+33>    call   puts@plt                      <puts@plt>
+        s: 0x402021 ◂— 'Get address from GOT'
+...
+pwndbg> si
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+ ► 0x401040       <puts@plt>      endbr64
+   0x401044       <puts@plt+4>    bnd jmp qword ptr [rip + 0x2fcd]     <puts>
+    ↓
+   0x7ffff7e02ed0 <puts>          endbr64
+   0x7ffff7e02ed4 <puts+4>        push   r14
+   0x7ffff7e02ed6 <puts+6>        push   r13
+   0x7ffff7e02ed8 <puts+8>        push   r12
+   0x7ffff7e02eda <puts+10>       mov    r12, rdi
+   0x7ffff7e02edd <puts+13>       push   rbp
+   0x7ffff7e02ede <puts+14>       push   rbx
+   0x7ffff7e02edf <puts+15>       sub    rsp, 0x10
+   0x7ffff7e02ee3 <puts+19>       call   *ABS*+0xa8720@plt                <*ABS*+0xa8720@plt>
+...
+```
+
+## PLT와 GOT 취약점을 이용한 공격 기법
+
+PLT와 GOT는 동적 라이브러리에서 함수의 주소를 찾고 기록할 때 사용되는 중요한 테이블이다. 그런데, 여기서 PLT가 GOT 앤트리에 저장된 함수의 주소를 참조하여 실행 흐름을 옮길 때, GOT의 값을 검증하지 않는다는 취약점이 존재한다.
+
+따라서, 만약 공격자가 GOT 앤트리 주소에 저장된 값을 임의로 변경할 수 있다면 PLT로 의도했던 함수의 주소를 호출할 때 그 함수가 아닌 우리가 공격하려고 하는 쉘코드가 담긴 주소로 이동시킬 수 있다.
+
+아래와 같이 GOT 앤트리에 저장된 값을 임의로 변조하여 `got` 바이너리에서 두 번째 `puts()`호출 직전에 `puts`의 GOT 앤트리를 "AAAAAAAA"로 변경하면 실제로 "AAAAAAAA"로 실행 흐름이 옮겨지게 된다.
+```
+$ gdb -q ./got
+pwndbg> b *main+33
+pwndbg> r
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+ ► 0x401157 <main+33>    call   puts@plt                      <puts@plt>
+        s: 0x402021 ◂— 'Get address from GOT'
+
+   0x40115c <main+38>    mov    eax, 0
+pwndbg> got
+GOT protection: Partial RELRO | GOT functions: 1
+[0x404018] puts@GLIBC_2.2.5 -> 0x7ffff7e02ed0 (puts) ◂— endbr64
+
+pwndbg> set *(unsigned long long *)0x404018 = 0x4141414141414141
+
+pwndbg> got
+GOT protection: Partial RELRO | GOT functions: 1
+[0x404018] puts@GLIBC_2.2.5 -> 0x4141414141414141 ('AAAAAAAA')
+pwndbg> c
+Continuing.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000000401044 in puts@plt ()
+...
+──────────────────────[ DISASM / x86-64 / set emulate on ]──────────────────────
+ ► 0x401044 <puts@plt+4>    bnd jmp qword ptr [rip + 0x2fcd]     <0x4141414141414141>
+ ```
+
+위와 같이 **GOT 엔트리에 임의의 값을 Overwrite 하여 실행 흐름을 변조하는 공격 기법을 `GOT Overwrite`**라고 부른다.  
+일반적으로 임의 주소에 임의의 값을 오버라이트하는 수단을 가지고 있을 때 수행하는 공격 기법이다.
