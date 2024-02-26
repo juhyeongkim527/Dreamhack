@@ -172,7 +172,7 @@ No symbols found in section .plt
 pwndbg>
 ```
 
-`main()`에서 `puts@plt`를 호출하는 부분에 break를 걸고 run 후 si로 `puts@plt` 내부로 들어가면, resolve 전에는 위에서 확인했듯이 puts의 **GOT** 엔트리에 쓰인 값인 `0x401030`으로 실행 흐름을 옮긴다. 
+`main()`에서 `puts@plt`를 호출하는 부분에 break를 걸고 run 후 si로 `puts@plt` 내부로 들어가면, resolve 전에는 위에서 확인했듯이 puts의 **GOT** 엔트리에 쓰인 값인 `0x401030`으로 실행 흐름을 옮긴다. `0x401030`은 뒤에서 resolve를 위한 주소이다. 
 
 이후 계속 실행 흐름을 따라가면 `0x401020`으로 점프 후 `<_dl_runtime_resolve_fxsave>`함수의 주소로 점프하는 것을 알 수 있다.  
 해당 함수의 이름에서 알 수 있듯이 동적 링크 과정에서 resolve를 하는 함수라는 것을 유추할 수 있다.
