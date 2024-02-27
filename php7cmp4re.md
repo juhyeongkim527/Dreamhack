@@ -5,7 +5,7 @@
   
 2. `if($input_2 < 74 && $input_2 > "74")` 에서 아스키 문자열과 정수를 비교할 때는,
    - 아스키 문자열을 **정수 그대로 해석할 수 있으면 그대로 해석한다.** 예를 들어, "73" < 74
-   - **정수로 해석 불가능한 경우에는 무조건 아스키 문자가 정수보다 작다고 해석한다.**  예를 들어, "7A" < 74
+   - **정수로 해석 불가능한 경우에는 정수가 아닌 아스키 문자 부분을 삭제한 정수로 해석한다.**  예를 들어, "7A" < 74 는 7 < 74 로 해석
    - 따라서, `input_2` 이 될 수 있는 값은 "7?" 에서 ?는 아스키값 `:`부터 뒤로 모두 가능 
 
 ![](https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FqOPNt%2FbtrAdcY26CF%2FKsn1qKzUqEaCql1Cbk6GG0%2Fimg.png)
