@@ -152,3 +152,12 @@ p.send(payload)
 
 p.interactive()
 ```
+
+<img width="536" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/b6817e70-2878-43f8-805c-43f31ebe0948">
+
+<img width="544" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/dc46899e-9cfe-4ac4-bc08-2745ca351f20">
+
+<img width="543" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/54bb151c-691c-4a85-b606-160a08af19af">
+
+<img width="548" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/ad7f0026-2593-48f6-a5b2-3956564534b4">
+
