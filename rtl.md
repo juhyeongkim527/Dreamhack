@@ -103,7 +103,6 @@ addr of "system" plt       <= ret + 0x10
 ***`ret` 리턴 가젯은 `pop rip`와 같은데, 여기서 return_address에 `ret`이 위치하면 `rsp`가 한칸 아래로 이동하고, `rip`가 `ret`을 다시 가리키니까 여기서 `ret`이 없을 때와 같은 상황이 됨. 따라서, 익스플로잇 코드에 영향을 안줌***  
 만약 return_address가 아니라 다른 곳에 `ret`이 위치한다면 rsp가 한칸 아래로 이동하고, 스택 바로 아래의 주소로 rip가 이동하는 것과 같은 동작을 함.
 
-
 아래는 `pop rdi; ret` 코드 가젯, `/bin/sh`이 저장된 메모리 주소, `system@plt`의 주소를 찾는 명령어와 결과이다.  
 `ROPgadget --binary <실행파일> --re "<필요한 코드 가젯>""`
 
@@ -113,12 +112,33 @@ addr of "system" plt       <= ret + 0x10
 
 <img width="821" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/56db90ae-e728-411f-9b81-77fd84d50b04">
 
-### 참고
+## 참고
 
 <img width="833" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/4bbcc1b2-3c08-4ae7-a54b-c466f7aeecc7">
 
 `system()` 함수를 호출하기 위해 **PLT**주소가 아닌 **GOT** 주소나 **실제 라이브러리의 시스템 콜 주소**를 입력하면 어떻게 될까라는 의문이 생겼었다.  
 의문에 대한 답을 먼저 얘기하자면 PLT 주소 이외에 GOT나 라이브러리의 함수 주소를 넣으면 실행을 할 수 없다.
+
+1. GOT 주소(`system@got.plt : 0x601028`)를 넣으면 실행할 수 없는 이유는 먼저 `plt` 주소를 넣었을 때 동작하는 과정을 살펴보며 이해하자.
+`x/i`를 통해 `system@plt` 주소를 확인해보면 아래와 같이 코드 영역이 나오는 것을 볼 수 있는데 `system@got.plt` 주소를 확인해보면 코드 영역이 아닌 `(bad)`라는 코드 영역이 아닌 값이 적혀있는 데이터 영역이 나온다.   
+애초에 데이터 영역인 got 주소에는 실행 권한조차 없다. got주소는 `libc`의 system 함수 주소가 적혀있는 데이터 영역이기 때문이다.  
+따라서, return_address에는 got 주소를 넣을 수 없다.
+
+<img width="1096" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/5bcb3086-a3ee-4426-804d-5d1d2005e3c3">
+
+<img width="736" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/d222f4b3-016a-404a-9453-399663c1669a">
+
+`system` 함수가 단 한번도 실행되기 전의 상태에서 got는 `<system@plt+6>`의 주소를 담고 있다. 이 때 system함수가 실행되면,   
+`call system` -> `system.plt(여기서 jmp got를 수행)` -> `system.plt + 6(got에 적혀있는 값)` -> `resolve과정` -> `libc의 system함수` 이렇게 실행 흐름이 넘어가게 된다.  
+resolve하게 되면서 got에는 libc의 실제 주소가 작성된다. 이렇게 resolve된 이후 다시 system함수가 호출되면, `call system` -> `system.plt(여기서 jmp got를 수행)` -> `libc의 system 함수` 이런 실행 흐름을 갖게 된다.   
+다시 정리해서 결론만 말하면, got는 실행할 수 있는 코드가 아니라 주소를 담고 있는 데이터 영역이기 때문에 got를 ret에 덮어 got로 실행 흐름을 옮겼다 하더라도 코드가 아니기 때문에 실행할 수 없는 것이다.
+
+2. 그리고 `libc`의 `system` 함수의 주소는 gdb에서 실행할 때는 디버깅의 편의를 위해 ASLR이 꺼져있기 때문에 고정되어 보이지만, 실제 바이너리 실행시에는 `libc`인 라이브러리의 주소가 ASLR에 따라 무작위로 바뀌므로 gdb에서 찾은 라이브러리 함수의 주소를 넣을 수는 없다.
+
+3. 추가로 `sfp`를 `b'a'*0x8`처럼 dummy 값으로 덮으면 스택 프레임이 바뀌어서 NX가 적용되는 스택 영역의 범위가 바뀌는 것이 아닐까라는 생각이 있었는데, 스택 영역은 프로세스가 실행될 때 OS가 매핑해주는 것이기 때문에 SFP를 변조하여 `rbp`가 이상한 곳을 가리키공 ㅣㅆ다고 해도 `rbp`가 가리키는 곳이 stack 영역이 되는 것은 아니다.  
+gdb에서 `vmmap` 명령어를 통해 확인해보면 `rbp`를 조작해도 여전히 `0x00007ffffffde000 ~ 0x00007ffffffff000`가 stack으로 유지된다. 그렇기 때문에 rbp가 가리키고 있는 영역에 NX 효력이 생기지는 않는다.
+
+<img width="647" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/c03dec6a-6a7b-4852-932c-a8a1b61667da">
 
 ## 익스플로잇 코드
 ```
