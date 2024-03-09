@@ -167,7 +167,7 @@ p.interactive()
 
 4. `pop rdi` 이후
 
-<img width="548" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/ad7f0026-2593-48f6-a5b2-3956564534b4">
+<img width="771" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/af802e6d-41af-457d-81c2-4ccef6a0c25c">
 
 5. `ret` 이후
 
