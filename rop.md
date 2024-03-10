@@ -200,11 +200,10 @@ p.interactive()
 
 3. 출력한 `read_got` 값과 `libc`의 `system`함수와의 오프셋을 이용하여 `system_got` 값을 구하기
 
-4. `read(0, read_got, ...)`을 통해서 앞에서 구한 `system_got`값과 바로 연속적으로 `/bin/sh` 문자열을 `read` 함수의 `STDIN(fd = 0)` 입력으로 보내서 `read_got`를 **Overwrite**하기
+4. `read(0, read_got, ...)`을 통해서 앞에서 구한 `system_got`값에 연속적으로 `/bin/sh` 문자열을 `read` 함수의 `STDIN(fd = 0)` 입력으로 보내서 `read_got`를 **Overwrite**하기  
+이후 `p.send(p64(system) + b'/bin/sh\x00')`으로 입력이 끝나면 calling convention에 따라 rip가 바로 다음 실행 순서에 따라 아래 스택의 instruction으로 이동
 
-5. `read('/bin/sh')`을 실행하도록 하면, 앞에서 Overwrite된 과정에 의해 `system('/bin/sh')`가 실행되므로 `rdi`에는 `read_got+0x8`의 주소를 대입하고, `ret` 가젯으로 `read_plt`를 호출하도록 하여 익스플로잇 완료하기
+5. `read_got`가 변조(Overwrite)된 상태에서 `read('/bin/sh')`을 실행하도록 하면,`system('/bin/sh')`가 실행되므로 `rdi`에는 앞에서 입력한 `/bin/sh`이 위치하는 `read_got+0x8`의 주소를 대입하고, `ret` 가젯으로 `read_plt`를 호출하도록 하여 익스플로잇 마무리
 
 <img width="536" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/4cb122c9-2905-48a5-bf6a-3335c53c839b">
 <img width="537" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/d51a5160-7c4f-4a10-85c4-ba4fc5ce7288">
-
-
