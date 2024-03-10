@@ -10,7 +10,7 @@
 
 # ROP : Return Oriented Programming
 
-`ROP`는 리턴 가젯을 사용하여 복잡ㅈ한 실행 흐름을 구현하는 기법이다. 공격자는 이를 이용하여 문제 상황에 따라, `return to library`, `return to dl-resolve`, `GOT overwrite` 등 여러 기법으로 페이로드를 구성할 수 있다.
+`ROP`는 리턴 가젯을 사용하여 복잡한 실행 흐름을 구현하는 기법이다. 공격자는 이를 이용하여 문제 상황에 따라, `return to library`, `return to dl-resolve`, `GOT overwrite` 등 여러 기법으로 페이로드를 구성할 수 있다.
 
 지난 rtl 문제에서는 `system@plt`를 통해 return to library 기법을 사용하여 문제를 해결하였었다.
 
@@ -139,9 +139,8 @@ canary = b'\x00' + p.recvn(7)
 
 # Exploit
 
-read_plt = e.plt['read'] # == read_plt = e.symbols['read']
-read_got = e.got['read'] # 여기서는 got 주소만 알 수 있고 got 주소 안의 내
-용은 알 수 없음
+read_plt = e.plt['read']       # read_plt = e.symbols['read']와 같음
+read_got = e.got['read']       # 여기서는 got 주소만 알 수 있고 got 주소 안의 내용은 알 수 없음
 write_plt = e.plt['write']
 read_system_offset = libc.symbols['read'] - libc.symbols['system']
 
@@ -150,7 +149,7 @@ pop_rsi_r15 = 0x0000000000400851
 ret = 0x0000000000400854
 
 payload += canary + b'a'*0x8
-payload += p64(ret) # to set stack 0x10
+payload += p64(ret)            # movaps 때문에 stack을 0x10 단위로 맞추기 위해 삽입
 
 # write(1, read_got, ...)
 
@@ -181,3 +180,31 @@ system = u64(read) - read_system_offset
 p.send(p64(system) + b'/bin/sh\x00')
 p.interactive()
 ```
+
+## GOT Overwrite 및 "/bin/sh" 입력 과정 참고 설명
+
+"/bin/sh"은 덮어쓸 GOT 엔트리의 바로 뒤 메모리 주소에 위치시키도록 GOT엔트리 뒤에 같이 입력하면 된다. 이 바이너리에서 입력을 위해 `read` 함수를 사용하는데, 해당 함수는 `rdi, rsi, rdx` 세 개의 인자를 사용한다.
+
+앞의 두 인자는 `pop rdi; ret`과 `pop rsi; pop r15; ret` 가젯으로 쉽게 설정할 수 있지만, `pop rdx`와 관련된 가젯은 일반적인 바이너리에서 거의 찾기 힘들다. (`pop r15`는 `pop rsi`를 위해 어쩔 수 없이 붙어있는 가젯으로 `r15`에는 그냥 0을 대입하도록 세팅해줌)
+
+이럴 때는 `libc`의 코드 가젯이나 `libc_csu_init` 가젯을 사용하여 문제를 해결할 수 있다. 또는 `rdx` 값을 변화시키기 위해 다른 함수를 간접적으로 호출해서 값을 설정할 수도 있는데,   
+예를 들어 `strncmp` 함수는 `rax`로 비교의 결과를 반환하고, `rdx`로 두 문자열의 첫 번째 문자부터 가장 긴 부분 문자열의 길이를 반환한다. 여기에 간접적으로, `rdx`에 넣기 원하는 값을 대입해서 사용할 수도 있다.
+
+해당 문제에서는 `read` 함수의 GOT를 읽은 뒤 `rdx`에 어느정도 큰 값이 설정되어 있기 때문에, 따로 `rdx` 값을 설정하는 가젯을 추가하지 않았지만, 좀 더 reliable한 익스플로잇을 위해서는 가젯을 추가해주는 것이 좋다.
+
+***해당 문제의 전체 익스플로잇 과정을 정리해보면,***
+
+1. 카나리 우회
+
+2. `write(1, read_got, ...)`을 통해 resolve된 `read` 함수의 got 값을 출력하기.
+
+3. 출력한 `read_got` 값과 `libc`의 `system`함수와의 오프셋을 이용하여 `system_got` 값을 구하기
+
+4. `read(0, read_got, ...)`을 통해서 앞에서 구한 `system_got`값과 바로 연속적으로 `/bin/sh` 문자열을 `read` 함수의 `STDIN(fd = 0)` 입력으로 보내서 `read_got`를 **Overwrite**하기
+
+5. `read('/bin/sh')`을 실행하도록 하면, 앞에서 Overwrite된 과정에 의해 `system('/bin/sh')`가 실행되므로 `rdi`에는 `read_got+0x8`의 주소를 대입하고, `ret` 가젯으로 `read_plt`를 호출하도록 하여 익스플로잇 완료하기
+
+<img width="536" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/4cb122c9-2905-48a5-bf6a-3335c53c839b">
+<img width="537" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/d51a5160-7c4f-4a10-85c4-ba4fc5ce7288">
+
+
