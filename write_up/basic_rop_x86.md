@@ -41,12 +41,41 @@ int main(int argc, char *argv[]) {
 1. `x86(32bit)` 아키텍처에서는 `x64(64bit)` 아키텍처와 달리 `rbp` 대신 `ebp`를 쓰는 등 레지스터의 범위가 다르며 pwntools로 packing할 때, `p64`가 아닌 `p32`를 사용해야 하는데 이를 인지하지 못했었다.
 2. 두번 째는 `x64`와 `x86`의 `Calling Convention`차이를 확인하지 못하였다.
 
-해당 [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/calling_convention.md)에서 확인할 수 있듯이, `x64`에서는 `rdi, rsi, rdx, rcx, r8, r9` 순서로 6개의 레지스터를 사용하며 초과한 나머지 인자는 `스택`에서 차례대로 사용한다.
+해당 [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/calling_convention.md)에서 확인할 수 있듯이, `x64`에서는 `rdi, rsi, rdx, rcx, r8, r9` 순서로 6개의 레지스터를 사용하며 초과한 나머지 인자는 `스택`에서 차례대로 사용한다. 
 
 그러나 `x86`에서는 `스택`에서 인자를 차례대로 `pop`해서 자동으로 `ebx, ecx, edx, esi, edi, ebp` 레지스터에 저장 후 사용하기 때문에 `x64`와 차이점이 있다.
 
+그리고 `x86`에서는 **함수를 호출한 후 스택에서 인자를 pop하여 register에 저장하는 반면**,   
+`x64`에서는 **스택에서 미리 pop하여 레지스터에 인자를 저장한 후 함수를 호출**해야 하는 순서 차이가 존재한다.
+
 그리고 `32bit` ELF 파일인 `basic_rop_x86`에는 `ebx, ecx, edx` 순으로 직접 `pop`을 하는 ROPgadget이 존재하지 않는데, 그렇더라도 32bit 호출 규악에서는 스택에 pop을 하면 자동으로 인자에 순서대로 저장되기 때문에,
 `pop register`에서 register 종류에 상관 없이 pop을 연속으로 3번 해주는 `pop; pop; pop; ret;` 가젯을 이용하면 된다.
+
+**정리하면, `x64`에서는 레지스터에 값이 삽입된 상태로 함수를 호출하면 해당 함수의 동작을 실행하고, `x86`에서는 함수를 호출하면 호출된 함수 내에서 스택의 값을 가져가서 레지스터에 삽입한 뒤 해당 함수의 동작을 실행한다.**
+
+**x64**
+```
+pop rdi; ret;
+rdi 값
+실행할 함수
+다음에 실행할 함수 또는 가젯 (앞에서 실행한 함수 내부에 ret;이 있으므로 돌아와서 실행 가능)
+...
+```
+
+**x86**
+```
+실행할 함수
+pppr 가젯
+인자1
+인자2
+인자3
+다음에 실행할 함수
+pp2
+인자1
+인자2
+다음에 실행할 함수
+...
+```
 
 그리고 참고로 `ret;` 리턴 가젯은 **호출할 함수나 instruction주소** 앞에만 위치해야하고, `pop` 가젯 앞에 위치하면 안된다. 따라서, `pop; pop; pop; ret;` 가젯 대신 `pop; ret;` 가젯을 연속 3번 쓰면 실행을 할 수 없다.
 
