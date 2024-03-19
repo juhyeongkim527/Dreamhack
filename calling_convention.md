@@ -15,7 +15,7 @@
 - x86에서는 레지스터의 수가 적기 때문에 인자 전달에 **스택을 사용**한다.
 - x86-64에서는 레지스터의 수가 x86보다 많아졌기 때문에 6개의 인자는 **rdi, rsi, rdx, rcx, r8, r9**을 순서대로 사용하고 그 이상의 인자에는 x86과 동일하게 스택을 사용한다.
 
-아래와 같이 같은 아키텍처에서도 사용하는 calling convention이 여러개 존재한다. 일단 리눅스 환경에서 중요한 **x86의 cdecl(C decoration call)**과 **x86-64의 SYSV(SYSTEM V AMD64 ABI)**에 대해서 알아보겠다.
+아래와 같이 같은 아키텍처에서도 사용하는 calling convention이 여러개 존재한다. 일단 리눅스 환경에서 중요한 **x86의 cdecl(C decoration call)**과 **x86-64의 SYSV(SYSTEM V AMD64 ABI)** 에 대해서 알아보겠다.
 
 ### 다양한 함수 호출 규악
 
@@ -40,7 +40,7 @@ $ file /bin/ls
 ```
 SYSV의 calling convention은 아래의 특징을 갖는다.
 
-1. 6개의 인자를 rdi, rsi, rdx, rcs, r8, r9에 순서대로 저장하여 전달하고, 초과한 인자는 스택을 이용하여 저장한다.
+1. 6개의 인자를 rdi, rsi, rdx, rcx, r8, r9에 순서대로 저장하여 전달하고, 초과한 인자는 스택을 이용하여 저장한다.
 2. Caller에서 인자 전달에 사용한 스택을 정리한다.
 3. callee의 return 값은 rax를 통해 전달한다.
 
