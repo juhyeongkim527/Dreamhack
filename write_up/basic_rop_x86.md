@@ -34,6 +34,22 @@ int main(int argc, char *argv[]) {
 ### checksec
 <img width="669" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/215a749b-9759-43d1-a2f3-4db33c079181">
 
+## 문제 풀이 방법
+
+해당 문제는 `basic_rop_x64` 문제처럼 `re2main`이나 `GOT Overwrite`로 풀이가 가능하다. 이번 문제에서는 `ret2main`으로 문제를 풀이하였는데 익스플로잇 코드를 처음 작성하며 실수한 부분이 2가지 있다. 
+
+1. `x86(32bit)` 아키텍처에서는 `x64(64bit)` 아키텍처와 달리 `rbp` 대신 `ebp`를 쓰는 등 레지스터의 범위가 다르며 pwntools로 packing할 때, `p64`가 아닌 `p32`를 사용해야 하는데 이를 인지하지 못했었다.
+2. 두번 째는 `x64`와 `x86`의 `Calling Convention`차이를 확인하지 못하였다.
+
+해당 [링크](https://github.com/juhyeongkim527/Dreamhack-Study/blob/main/calling_convention.md)에서 확인할 수 있듯이, `x64`에서는 `rdi, rsi, rdx, rcx, r8, r9` 순서로 6개의 레지스터를 사용하며 초과한 나머지 인자는 `스택`에서 차례대로 사용한다.
+
+그러나 `x86`에서는 `스택`에서 인자를 차례대로 `pop`해서 자동으로 `ebx, ecx, edx, esi, edi, ebp` 레지스터에 저장 후 사용하기 때문에 `x64`와 차이점이 있다.
+
+그리고 `32bit` ELF 파일인 `basic_rop_x86`에는 `ebx, ecx, edx` 순으로 직접 `pop`을 하는 ROPgadget이 존재하지 않는데, 그렇더라도 32bit 호출 규악에서는 스택에 pop을 하면 자동으로 인자에 순서대로 저장되기 때문에,
+`pop register`에서 register 종류에 상관 없이 pop을 연속으로 3번 해주는 `pop; pop; pop; ret;` 가젯을 이용하면 된다.
+
+그리고 참고로 `ret;` 리턴 가젯은 **호출할 함수나 instruction주소** 앞에만 위치해야하고, `pop` 가젯 앞에 위치하면 안된다. 따라서, `pop; pop; pop; ret;` 가젯 대신 `pop; ret;` 가젯을 연속 3번 쓰면 실행을 할 수 없다.
+
 ## 익스플로잇 코드
 ```
 from pwn import *
@@ -87,4 +103,5 @@ p.send(payload)
 p.interactive()
 ```
 
+### 참고
 <img width="829" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/e8de9669-fdd0-4b78-b49b-b7e87783834a">
