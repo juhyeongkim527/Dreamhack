@@ -100,4 +100,104 @@ ASLR처럼 영역이 메모리에 매핑되는 주소가 달라지면, `no-pic`�
 
 `pic`에서는 `rip`를 기준으로 상대주소(오프셋)을 통해 **상대참조(Relative Addressing)** 하기 때문에 바이너리가 메모리에 무작위 주소로 매핑되어도 제대로 실행될 수 있다.
 
+## PIE
+
+**Position-Independent Executable(PIE)** 는 무작위 주소에 매핑돼도 실행 가능한 실행 파일(바이너리)를 뜻한다.
+
+ASLR이 도입되기 전에는 실행 파일을 무작위 주소에 매핑할 필요가 없었기 때문에 리눅스는 실행 파일의 재배치를 고려하지 않고 설계되었다.
+
+이후에 ASLR이 도입되었을 때 실행 파일도 메모리에 무작위로 매핑되게 하고 싶었지만, 이미 널리 사용되고 있던 실행 파일의 형식을 바꾸어 메모리에 무작위 재배치가 가능하도록 하면 호환성 문제가 발생하여 장점보다 단점이 더 크게 될 수 밖에 없었다.
+
+그래서 개발자들은 실행 파일과 달리 원래 재배치가 가능하도록 설계된 공유 오브젝트(Shared Object)를 실행 파일로 사용하기로 했다.
+
+리눅스의 기본 실행 파일 중 하나인 `/bin/ls`의 파일 헤더 정보를 살펴보면 `Type`이 공유 오브젝트를 나타내는 `DYN(ET_DYN)`임을 알 수 있다.
+
+```
+$ readelf -h /bin/ls
+ELF Header:
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Position-Independent Executable file)
+  Machine:                           Advanced Micro Devices X86-64
+  Version:                           0x1
+  Entry point address:               0x6ab0
+  Start of program headers:          64 (bytes into file)
+  Start of section headers:          136224 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               64 (bytes)
+  Size of program headers:           56 (bytes)
+  Number of program headers:         13
+  Size of section headers:           64 (bytes)
+  Number of section headers:         31
+  Section header string table index: 30
+```
+
+## PIE on ASLR
+
+PIE는 재배치가 가능하므로, ASLR이 적용된 시스템에서 실행 파일도 무작위 주소에 적재되게 된다. 참고로 ASLR이 적용되지 않은 시스템에서는 PIE가 적용되어도 실행 파일이 무작위 주소에 적재되지 않는다.
+
+`addr` 실행 파일을 `-no-pie` 옵션을 제거하여 PIE가 적용되도록 컴파일하면 아래와 같이 코드 영역인 `main` 함수의 주소가 바뀌는 것을 알 수 있다.
+
+```
+$ gcc -o pie addr.c -ldl
+$ ./pie
+buf_stack addr: 0x7ffc85ef37e0
+buf_heap addr: 0x55617ffcb260
+libc_base addr: 0x7f0989d06000
+printf addr: 0x7f0989d6af00
+main addr: 0x55617f1297ba
+$ ./pie
+buf_stack addr: 0x7ffe9088b1c0
+buf_heap addr: 0x55e0a6116260
+libc_base addr: 0x7f9172a7e000
+printf addr: 0x7f9172ae2f00
+main addr: 0x55e0a564a7ba
+$ ./pie
+buf_stack addr: 0x7ffec6da1fa0
+buf_heap addr: 0x5590e4175260
+libc_base addr: 0x7fdea61f2000
+printf addr: 0x7fdea6256f00
+main addr: 0x5590e1faf7ba
+```
+
+## PIE 우회
+
+### 코드의 base주소 구하기
+
+ASLR 환경에서 PIE가 적용되면 바이너리가 실행될 때 마다 다른 주소에 적재된다.   
+
+이렇게 되면, 이전과 달리 **바이너리 코드 영역의 가젯을 바로 사용하거나, 데이터 영역에 접근하려면** 바이너리가 실행될 때 마다 바뀌는 메모리에 적재된 주소를 알아야한다. 
+
+이 주소를 PIE 베이스, 또는 코드 베이스라고 부른다. 코드 베이스를 구하려면 라이브러리의 베이스 주소를 구하듯이 코드 영역의 임의 주소를 읽고, 알고 있는 오프셋을 통해 읽은 영역의 오프셋을 빼줌으로써 베이스 주소를 구할 수 있다.
+
+이는 ROP에서 공유 라이브러리의 베이스 주소를 구하는 방식과 크게 다르지 않다.
+
+### Partial Overwrite
+
+코드 베이스를 구하기 어렵다면 반환 주소의 일부 바이트만 덮는 공격을 고려해볼 수 있다. 이러한 공격을 Partial Overwrite라고 한다.
+
+일반적으로 함수의 반환 주소는 그 함수를 호출한 함수(Caller)의 내부를 가리킬 것이다. 특정 함수의 호출 관계는 정적 분석 또는 동적 분석으로 쉽게 확인할 수 있으므로, 공격자는 반환 주소를 예측할 수 있다.
+
+ASLR 특성상, 페이징으로 인해 스택, 힙, 라이브러리가 매핑된 주소와 같이 **코드 영역의 주소도 하위 12비트 값이 항상 같다.**
+
+따라서, 사용하려는 코드 가젯의 주소가 반환 주소와 하위 한 바이트만 다르다면, 이 갚을 덮어서 원하는 코드를 실행시킬 수 있다.
+
+하지만, 만약 두 바이트 이상이 다른 주소로 실행 흐름을 옮기려고 한다면, ASLR로 랜덤화되는 주소를 맞춰야 하므로 브루트 포싱이 필요하며, 익스플로잇이 확률에 따라 성공하게 된다.
+
+## 정리
+
+- **상대 참조(Relative Addressing)**: 어떤 값을 기준으로 다른 주소를 지정하는 방식
+
+- **Position Independent Code (PIC)**: 어떤 주소에 매핑되어도 실행 가능한 코드. `절대 주소`를 사용하지 않으며 일반적으로 `rip`를 기준으로 한 상대 주소를 사용함.
+
+- **Position Independent Executable (PIE)**: 어떤 주소에 매핑되어도 실행 가능한 실행 파일. PIE의 코드는 모두 PIC이다. 자체적으로 보호 기법은 아니지만 ASLR이 적용된 환경에서는 시스템을 더욱 안전하게 만드는 효과가 있음. 최신 gcc는 기본적으로 PIE 컴파일을 함.
+
+- **Partial Overwrite**: 어떤 값을 일부분만 덮는 공격 방법. PIE를 우회하기 위해 사용될 수 있음.
+
+### 참고 : 페이징(Paging)
+
 <img width="685" alt="image" src="https://github.com/juhyeongkim527/Dreamhack-Study/assets/138116436/fa694c8a-7ad3-42e6-b382-c9ceea69bba5">
