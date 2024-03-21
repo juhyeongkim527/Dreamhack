@@ -1,2 +1,2 @@
-# Dreamhack-Study
-드림핵 공부 내용
+# Dreamhack
+[Dreamhack](https://dreamhack.io/) study and wargame write up
