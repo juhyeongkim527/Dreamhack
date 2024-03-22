@@ -1,2 +1,2 @@
 # Dreamhack
-[Dreamhack](https://dreamhack.io/) study and wargame write up
+[Dreamhack](https://dreamhack.io/) study wargame write up note
