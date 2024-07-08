@@ -111,7 +111,7 @@ chall@852bb2be037c:~$
 
 `docker run` 명령어는 생성된 이미지에서 컨테이너를 생성하는 동시에 실행까지 하는 명령어였다면, `docker create`와 `docker start`는 생성과 실행을 나눠서 하는 명령어이다. 
 
-여기에 `docker exec` 까지 실행하면 `docker run`의 모든 과정이 되고, `docker start` 부터 `docker ps`를 통해 실행중인 도커 컨테이너에서 확인할 수 있다.
+여기에 `docker exec` 까지 실행하면 실행중인 컨테이너에 접속하여 `docker run`의 모든 과정이 되고, `docker start` 부터 `docker ps`를 통해 실행중인 도커 컨테이너에서 확인할 수 있다.
 
 - `docker create [옵션] <이미지명|ID> [명령어]` : 도커 이미지 이름을 통해 컨테이너 생성
 - `docker start [옵션] <컨테이너명|ID>` : 도커 컨테이너 이름을 통해 컨테이너 실행
@@ -139,7 +139,9 @@ eb01688504dc   my-image:1   "/bin/sh -c 'socat -…"   19 seconds ago   Up 4 sec
 
 ## `docker exec`
 
-실행중인 컨테이너에 접속하여 명령을 수행하는 명령어이다. `docker run`과 유사하게 사용이 가능하지만 이미지를 통해 컨테이너를 생성하고 실행하는 것이 아닌 이미 실행중인 컨테이너에 접속하여 명령어를 실행하는 차이가 있다.
+실행중인 컨테이너에 **접속**하여 명령을 수행하는 명령어이다. `docker run`과 유사하게 사용이 가능하지만 이미지를 통해 컨테이너를 생성하고 실행하는 것이 아닌 이미 실행중인 컨테이너에 접속하여 명령어를 실행하는 차이가 있다.
+
+**`docker start`와 `docker exec`의 차이는 컨테이너를 실행하는 것까지는 `docker start`이고, 실행 중인 컨테이너에 접속하여 명령을 수행하는 것은 `docker exec`부터 이다.**
 
 `docker create` -> `docker start` -> `docker exec`을 통해 컨테이너에 접속하여 명령을 수행할 수 있고 이는 `docker run`이 한번에 수행한다.
 
