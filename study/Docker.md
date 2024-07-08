@@ -90,3 +90,172 @@ user@user-VirtualBox:~/Desktop/ex-docker$ docker run -it my-image:1 /bin/bash
 
 chall@852bb2be037c:~$
 ```
+
+## docker ps
+
+실행 중인 컨테이너 목록을 출력하는 명령어이다.
+
+- `docker ps -a` : `-a` 옵션은 실행중인 컨테이너 뿐만 아니라 종료된 컨테이너까지 모두 출력하는 옵션이다.
+
+### Example
+
+컨테이너를 실행한 상태로 다른 터미널 창을 열어 `docker ps`를 입력하면 아래와 같이 실행 중인 컨테이너 목록이 출력된다.
+
+![image](https://github.com/juhyeongkim527/Dreamhack/assets/138116436/23449a6e-11df-45f5-ab2a-d393efb952a8)
+
+컨테이너 안에서 `exit` 명령어를 실행하여 컨테이너를 종료한 후 `docker ps`를 입력하면 컨테이너가 출력되지 않고, `docker ps -a`를 입력하면 종료된 컨테이너까지 출력된다.
+
+![image](https://github.com/juhyeongkim527/Dreamhack/assets/138116436/caabb2f5-d6f7-4ae8-8091-7cf6f809201b)
+
+## docker create, docker start
+
+`docker run` 명령어는 생성된 이미지에서 컨테이너를 생성하는 동시에 실행까지 하는 명령어였다면, `docker create`와 `docker start`는 생성과 실행을 나눠서 하는 명령어이다.
+
+- `docker create [옵션] <이미지명|ID> [명령어]` : 도커 이미지 이름을 통해 컨테이너 생성
+- `docker start [옵션] <컨테이너명|ID>` : 도커 컨테이너 이름을 통해 컨테이너 실행
+
+### Example
+
+```
+user@user-VirtualBox:~$ docker images
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+my-image     1         9d201c4de2b6   2 hours ago   122MB
+
+user@user-VirtualBox:~$ docker create my-image:1
+eb01688504dc201d9f3a03bf3a27d84cdeafca4b2110766d52fc7551a7d9d05a
+user@user-VirtualBox:~$ docker ps -a
+CONTAINER ID   IMAGE        COMMAND                  CREATED         STATUS    PORTS     NAMES
+eb01688504dc   my-image:1   "/bin/sh -c 'socat -…"   4 seconds ago   Created             priceless_meninsky
+
+user@user-VirtualBox:~$ docker start eb01688504dc
+eb01688504dc
+
+user@user-VirtualBox:~$ docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED          STATUS         PORTS      NAMES
+eb01688504dc   my-image:1   "/bin/sh -c 'socat -…"   19 seconds ago   Up 4 seconds   2222/tcp   priceless_meninsky
+```
+
+## docker exec
+
+실행중인 컨테이너에 접속하여 명령을 수행하는 명령어이다. `docker run`과 유사하게 사용이 가능하지만 이미지를 통해 컨테이너를 생성하고 실행하는 것이 아닌 이미 실행중인 컨테이너에 접속하여 명령어를 실행하는 차이가 있다.
+
+`docker exec [옵션] <컨테이너명|ID> [명령어]` 
+
+### Example
+
+`docker run`과 유사하게 `-it` 옵션으로 **bash 셸을 실행**할 수 있다.
+
+➡️ `docker exec -it <컨테이너명|ID> /bin/bash` : 실행 중인 컨테이너에서 bash 셸 열기
+
+```
+user@user-VirtualBox:~$ docker exec -it eb01688504dc /bin/bash
+
+chall@eb01688504dc:~$
+```
+
+## docker stop
+
+실행 중인 컨테이너를 중단하는 명령어이다. 실행 중인 컨테이너 내부에서는 자신의 컨테이너를 중단하려면 `exit` 명령어를 이용해야 하고, 실행중인 외부 컨테이너를 중단시킬 때 해당 명령어를 사용한다.
+
+## docker pull
+
+레지스트리(Docker Hub)에 존재하는 **도커 이미지를 다운**받는 명령어이다.
+
+`docker pull [옵션] <이미지명>`
+
+### Example
+
+- `docker pull ubuntu:18.04` : Docker hub에서 ubuntu:18.04 이미지를 다운받습니다.
+
+```
+user@user-VirtualBox:~$ docker pull ubuntu:18.04
+
+18.04: Pulling from library/ubuntu
+0c5227665c11: Pull complete 
+Digest: sha256:8aa9c2798215f99544d1ce7439ea9c3a6dfd82de607da1cec3a8a2fae005931b
+Status: Downloaded newer image for ubuntu:18.04
+docker.io/library/ubuntu:18.04
+```
+
+## docker rm
+
+**도커 컨테이너를 삭제**하는 명령어이다.
+
+- `docker rm [옵션] <컨테이너명|ID>`
+
+##  docker rmi
+
+**도커 이미지를 삭제**하는 명령어이다.
+
+- `docker rmi [옵션] <이미지명|ID>`
+
+## docker inspect
+
+도커 이미지 혹은 컨테이너의 자세한 정보를 출력하는 명령어이다.
+
+- `docker inspect [옵션] <이미지 혹은 컨테이너명|ID>`
+
+### Example
+
+```
+user@user-VirtualBox:~$ docker inspect ubuntu:18.04
+[
+    {
+        "Id": "sha256:3941d3b032a8168d53508410a67baad120a563df67a7959565a30a1cb2114731",
+        "RepoTags": [
+            "ubuntu:18.04"
+        ],
+        "RepoDigests": [
+            "ubuntu@sha256:8aa9c2798215f99544d1ce7439ea9c3a6dfd82de607da1cec3a8a2fae005931b"
+        ],
+        "Parent": "",
+        "Comment": "",
+        "Created": "2023-03-08T03:22:44.73196058Z",
+        "Container": "ee3fcc8c88d3f3129f1236850de28a7eba0da7c548a7b23a6495905ebcf255ea",
+        "ContainerConfig": {
+            "Hostname": "ee3fcc8c88d3",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Cmd": [
+                "/bin/sh",
+                "-c",
+                "#(nop) ",
+                "CMD [\"/bin/bash\"]"
+            ],
+            "Image": "sha256:b64649bc9d1a48300ec5a929146aa3c5ca80046f74c33aa5de65a7046f5177a6",
+            "Volumes": null,
+...
+...
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 63146040,
+        "VirtualSize": 63146040,
+        "GraphDriver": {
+            "Data": {
+                "MergedDir": "/var/lib/docker/overlay2/0fe24c66cfaad338ccd55946d7734702a3575513fb2e697b409d3194c95c7e62/merged",
+                "UpperDir": "/var/lib/docker/overlay2/0fe24c66cfaad338ccd55946d7734702a3575513fb2e697b409d3194c95c7e62/diff",
+                "WorkDir": "/var/lib/docker/overlay2/0fe24c66cfaad338ccd55946d7734702a3575513fb2e697b409d3194c95c7e62/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:b7e0fa7bfe7f9796f1268cca2e65a8bfb1e010277652cee9a9c9d077a83db3c4"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "0001-01-01T00:00:00Z"
+        }
+    }
+]
+```
