@@ -109,7 +109,9 @@ chall@852bb2be037c:~$
 
 ## `docker create`, `docker start`
 
-`docker run` 명령어는 생성된 이미지에서 컨테이너를 생성하는 동시에 실행까지 하는 명령어였다면, `docker create`와 `docker start`는 생성과 실행을 나눠서 하는 명령어이다. 여기에 `docker exec` 까지 실행하면 `docker run`의 모든 과정이 된다.
+`docker run` 명령어는 생성된 이미지에서 컨테이너를 생성하는 동시에 실행까지 하는 명령어였다면, `docker create`와 `docker start`는 생성과 실행을 나눠서 하는 명령어이다. 
+
+여기에 `docker exec` 까지 실행하면 `docker run`의 모든 과정이 되고, `docker start` 부터 `docker ps`를 통해 실행중인 도커 컨테이너에서 확인할 수 있다.
 
 - `docker create [옵션] <이미지명|ID> [명령어]` : 도커 이미지 이름을 통해 컨테이너 생성
 - `docker start [옵션] <컨테이너명|ID>` : 도커 컨테이너 이름을 통해 컨테이너 실행
@@ -157,7 +159,7 @@ chall@eb01688504dc:~$
 
 ## `docker stop`
 
-실행 중인 컨테이너를 중단하는 명령어이다. 실행 중인 컨테이너 내부에서는 자신의 컨테이너를 중단하려면 `exit` 명령어를 이용해야 하고, 실행중인 외부 컨테이너를 중단시킬 때 해당 명령어를 사용한다.
+실행 중인 컨테이너를 중단하는 명령어이다. `docker run`이나 `docker exec`로 접속하여 실행 중인 컨테이너 내부에서는 자신의 컨테이너를 중단하려면 `exit` 명령어를 이용해야 하고, 실행중인 다른 외부 컨테이너나 `docker start`를 통해서 아직 접속하지 않은 컨테이너를 중단시킬 때 해당 명령어를 사용한다.
 
 ## `docker pull`
 
