@@ -273,7 +273,7 @@ $ readelf -s libc-2.27.so | grep " __libc_start_main@"
 
 `buf`에 `a\n`을 입력하고 난 후의 상태(`rbp-0x8`에 `canary`가 위치하고, `rbp+0x8`에 `libc_start_main+x`인 `return address`가 위치핢)
 
-![gdb 캡쳐 링크 넣기]()
+![image](https://github.com/user-attachments/assets/4e2fdf93-36c2-4629-b9b9-83af21fcef03)
 
 ---
 `scanf`는 개행문자가 입력될 때 까지 입력을 받고 개행문자는 버려서 메모리에 입력되지 않지만, 
