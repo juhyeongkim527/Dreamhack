@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
 
 <img width="760" alt="image" src="https://github.com/user-attachments/assets/588954bd-09d6-4e1f-b5bd-a06c28fc6e12">
 
-**`libc.symbols['_IO_2_1_stdout_']` 으로 `offset`을 구해야 했어서 이것 때문에 시간이 오래걸렸다. **
+**`libc.symbols['_IO_2_1_stdout_']` 으로 `offset`을 구해야 했어서 이것 때문에 시간이 오래걸렸다.**
 
 ## Overwrite return address : `canary`가 존재하지 않기 때문에 가능
 
