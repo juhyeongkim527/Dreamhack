@@ -83,7 +83,9 @@ int main(int argc, char *argv[]) {
 
 <img width="830" alt="image" src="https://github.com/user-attachments/assets/a82bd960-f192-4d35-b9f4-c97f7cec1f68">
 
-그리고 gdb를 통해 `free`를 호출하기 직전 상태는 아래와 같기 때문에 `[rsp + 0x50] == NULL` 인 조건의 원가젯이 사용이 가능하다고 생각하여 `*(ptr + 1)`에 해당 원가젯의 주소를 대입하려고 했는데 안됬다.
+그리고 gdb를 통해 `free`를 호출하기 직전 상태는 아래와 같은데, 처음에 잘못봐서 `[rsp + 0x50] == NULL` 인 조건의 원가젯이 사용이 가능하다고 생각하여 `*(ptr + 1)`에 해당 원가젯의 주소를 대입하려고 했는데 안됬다.
+
+<img width="308" alt="image" src="https://github.com/user-attachments/assets/34457b09-c083-4bd5-b4cc-23d34a4386f6">
 
 오히려, 세 원가젯 중 `[rsp + 0x30] == NULL`인 원가젯만 익스플로잇이 가능했고, 인자를 설정해주지 않은 `system` 함수나 `write`, `read` 등 라이브러리의 아무 함수나 Overwrite 해줘도 익스플로잇이 가능했다.
 
