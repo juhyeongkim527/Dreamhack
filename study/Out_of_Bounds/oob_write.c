@@ -22,7 +22,7 @@ int main() {
   scanf("%u", &idx);
 
   stu.[idx - 1].attending = 1;
-  //  stu[idx - 1].age = 1;
+  //  stu[idx - 1].age = 1; 이렇게 하면 익스플로잇 불가능
 
   if (isAdmin) printf("Access granted.\n");
   return 0;
