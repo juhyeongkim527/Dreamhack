@@ -84,9 +84,11 @@ char *command[10] = { "cat",
 
 잘 생각해보면 `name`은 `char name[16]` 으로 선언되어 있기 때문에, `name[0]`에 `"/bin/sh"`을 저장해주고, `name[8]`에 `name[0]`의 주소를 입력해주면 결국 `command[idx]`가 `"/bin/sh"` 문자열이 저장된 주소를 가리키게 할 수 있다.
 
-따라서, `command[idx]`에는 `name[8]`의 주소가 저장되야 함을 알 수 있다.
+따라서, `command[idx]`에는 `name[8]`의 주소가 저장되야 함을 알 수 있다. 결국 `read(0, name, sizeof(name));`을 통해 `name`에 `"/bin/sh" + name[0]의 주소`를 입력해주면 된다.
 
-따라서, `name`에 `"/bin/sh" + name[0]의 주소`를 입력해주면 된다.
+헷갈린 점은 `system("/bin/sh");` 자체도 문자열이 전달되는게 아닌가 했는데, 해당 코드가 존재하는 바이너리를 보면 `rdi`에 `"/bin/sh"` 문자열 자체가 아닌 해당 문자열 리터럴을 가리키는 주소가 전달된다.
+
+`command[idx]`로 배열의 인덱스를 통해 전달하면 해당 배열의 주소가 아닌 해당 배열에 저장된 값이 전달되므로, `command[idx]`에는 `"/bin/sh"`이 저장된 주소를 전달해야 한다.
 
 ## 3. `name`, `command` 오프셋 계산
 
