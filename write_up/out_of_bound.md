@@ -90,6 +90,8 @@ char *command[10] = { "cat",
 
 `command[idx]`로 배열의 인덱스를 통해 전달하면 해당 배열의 주소가 아닌 해당 배열에 저장된 값이 전달되므로, `command[idx]`에는 `"/bin/sh"`이 저장된 주소를 전달해야 한다.
 
+**인덱스로 전달하면 원소인 문자열 리터럴 자체가 전달되고, 만약 command로 전달하면 배열의 주소가 전달되는 차이점을 기억하자**
+
 ## 3. `name`, `command` 오프셋 계산
 
 <img width="481" alt="image" src="https://github.com/user-attachments/assets/5c39dd9b-014c-4405-b771-14a022b8af1c">
