@@ -82,6 +82,10 @@ int main()
 
 <img width="1116" alt="image" src="https://github.com/user-attachments/assets/bd3b63d6-a164-4389-9f7b-367831813460">
 
+그리고, `info files`로 각 영역을 출력해보면 맨 아래의 `.bss` 영역에 `0x401c` 오프셋이 해당되는 것을 알 수 있다.
+
+<img width="891" alt="image" src="https://github.com/user-attachments/assets/f29d2026-e16f-48c4-8df3-e3171a4db8a2">
+
 **결론적으로 `PIE`가 적용되면 바이너리가 매핑되는 메모리 주소가 매번 바뀌므로 가상 주소도 바뀌게 되어, 바이너리가 매핑된 주소를 구해준 후 거기에 `changeme`의 오프셋을 더해주면 된다.**
 
 그럼 여기서 바이너리가 매핑된 가상 주소를 어떻게 구해야 할까 ?
