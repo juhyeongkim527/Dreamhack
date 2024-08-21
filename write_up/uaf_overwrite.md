@@ -172,11 +172,11 @@ if (idx < 10 && custom[idx]) {
 
 **이를 위해서는 `libc`의 베이스 주소를 먼저 구해야한다.** 이를 어떻게 구할 수 있을까 ? 단서는 `custom_func`에 있다.
 
-## Leak libc base
+## 1. Leak libc base
 
 해당 바이너리에는 `UAF` 취약점이 존재하기 때문에 해당 취약점을 이용하여 `libc base`를 구해야 한다. 이를 위해서 `ptmalloc2`의 `unsorted bin`의 특징을 이용할 수 있다.
 
-**`free`를 통해 `unsortedbin`에 처음 연결되는 청크는 `libc` 영역의 특정 주소와 이중 원형 연결 리스트를 형성한다. 따라서, `unsortedbin`에 처음 연결되는 청크는 `fd`와 `bk` 값으로 `libc`영역의 특정 주소를 가리키게 된다.**
+**`free`를 통해 `unsortedbin`가 비어 있던 상태에서 처음 연결되는 청크는 `libc` 영역의 특정 주소와 이중 원형 연결 리스트를 형성한다. 따라서, `unsortedbin`에 처음 연결되는 청크는 `fd`와 `bk` 값으로 `libc`영역의 특정 주소를 가리키게 된다.**
 
 **이 특징을 통해, `unsortedbin`에 처음 연결된 청크를 다시 재할당하여 해당 청크에 저장된 `fd`와 `bk` 값을 읽는다면, `libc`의 특정 영역의 주소를 구할 수 있고, 이 특정 영역과 `libc base` 간의 오프셋을 빼주면 `libc base`를 구할 수 있게 된다.**
 
@@ -205,6 +205,8 @@ if (idx < 10 && custom[idx]) {
 
 따라서, `fd`와 `bk` 값을 읽기 위해서는 2개의 청크를 할당 후, 두번째 청크는 할당된 채로 첫번째 청크가 `Top Chunk`와 맞닿지 못하게 하여, 첫번째 청크만 `free`한 후 `fd`와 `bk` 값을 읽어야 한다.
 
+첫 번째 청크가 아닌 두 번째 청크를 `free` 한다면, `free`한 청크가 `Top Chunk`와 붙어서 당연히 `fd`와 `bk`를 읽을 수 없을 것이다.
+
 **그리고, `malloc`을 통해 청크가 할당되면, 낮은 주소부터 증가하며 `Top Chunk`에 새롭게 할당할 청크가 추가되어 위치하고, `Top Chunk`는 할당된 사이즈에서 추가로 헤더가 추가된 만큼 다시 증가하게 된다.**
 
 아래의 예시를 보면, `1050bytes` 사이즈의 청크를 1개 할당해준 상태에서 `heap`의 상태를 보면 `Top Chunk`의 주소가 `0x5555556036c0` 이고, 다시 `1050bytes` 사이즈의 청크를 1개 더 할당해주면 `Top Chunk`의 주소인 `0x5555556036c0`에 새로운 청크가 붙게 된다.
@@ -214,4 +216,80 @@ if (idx < 10 && custom[idx]) {
 <img width="404" alt="image" src="https://github.com/user-attachments/assets/a8e19a05-98fc-4151-8ea8-02a5c0b02797">
 
 <img width="405" alt="image" src="https://github.com/user-attachments/assets/23a98726-d4f8-43be-b5a2-707ea2df4dd4">
+
+---
+
+참고로, 청크가 할당되는 아래의 시나리오를 한번 생각해보자.
+
+<img width="719" alt="image" src="https://github.com/user-attachments/assets/4473df26-a044-491d-917c-bab874f1f89a">
+
+<img width="349" alt="image" src="https://github.com/user-attachments/assets/e74150c5-7133-4516-8cc6-002c2f867681">
+
+순서는 아래와 같다.
+
+1. `custom[0]`에 청크 할당 : `custom[0]` 존재
+2. `custom[1]`에 청크 할당 : `custom[0], custom[1]` 존재
+3. `custom[2]`에 청크 할당 후, `custom[0]`을 `free` : `custom[1], custom[2]` 존재, `custom[0] = NULL`이자, 해당 청크는 `unsortedbin`에 저장
+4. `custom[3]`에 청크 할당 후, `custom[1]`을 `free` : `custom[2], custom[3]` 존재, `custom[0]`이 쓰던 청크가 `unsortedbin`에서 `custom[3]`에게 할당, `custom[1] = NULL`이자 `unsortedbin`에 저장
+
+이 상태에서 `heap`으로 파악해보면, `custom[1]`이 사용하던 청크가 `unsortedbin`에 두번째로 들어갔음에도 불구하고 `fd`, `bk`가 `libc`의 특정 영역을 가리킨다.
+
+**그 이유는, `unsortedbin`에서 프로그램 실행 후 제일 처음 들어간 청크만 `fd`와 `bk`가 `libc`의 특정 영역을 가리키는게 아니라 `unsortedbin`이 비어있던 상태에서 들어간 청크는 전부 `fd`와 `bk`가 `libc`의 특정 영역을 가리키니 이를 알고 넘어가자.**
+
+### 다시 돌아와서...
+
+<img width="358" alt="image" src="https://github.com/user-attachments/assets/de907f80-7c39-47a7-963b-4d4cdc34e795">
+
+그럼 2개의 청크를 할당하고, 첫번째 청크를 해제한 상태에서 `fd`와 `bk`가 가리키는 `0x7ffff7fa3ce0`가 `libc`에 속하는지, 속한다면 오프셋은 얼마인지 `vmmap`을 통해 계산해보자.
+
+### 수정할 부분
+
+이번 문제에서 `libc-2.27.so` 라이브러리를 이용해야 하는데, 나는 `vmmap`으로 출력해보면 아래와 같이 `libc.so.6` 버전이 링킹되어 있기 때문에 `libc base`의 가상 주소와 `fd`와 `bk`로 얻은 특정 영역의 주소도 달라지게 된다.
+
+이 부분을 `LD_PRELOAD`와 `LD_LIBRARY_PATH`로 설정해야 한다고 했는데, 이 부분이 힘들어서 일단은 강의자료의 오프셋과 `size`의 입력 값인 `1280`을 써서 할 예정이다. 나중에 수정하자.
+
+```
+pwndbg> vmmap
+LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
+             Start                End Perm     Size Offset File
+    0x555555400000     0x555555402000 r-xp     2000      0 /home/dreamhack/uaf_overwrite
+    0x555555601000     0x555555602000 r--p     1000   1000 /home/dreamhack/uaf_overwrite
+    0x555555602000     0x555555603000 rw-p     1000   2000 /home/dreamhack/uaf_overwrite
+    0x555555603000     0x555555624000 rw-p    21000      0 [heap]
+    0x7ffff79e2000     0x7ffff7bc9000 r-xp   1e7000      0 /home/dreamhack/libc-2.27.so
+    0x7ffff7bc9000     0x7ffff7dc9000 ---p   200000 1e7000 /home/dreamhack/libc-2.27.so
+    0x7ffff7dc9000     0x7ffff7dcd000 r--p     4000 1e7000 /home/dreamhack/libc-2.27.so
+    0x7ffff7dcd000     0x7ffff7dcf000 rw-p     2000 1eb000 /home/dreamhack/libc-2.27.so
+    0x7ffff7dcf000     0x7ffff7dd3000 rw-p     4000      0 [anon_7ffff7dcf]
+    0x7ffff7dd3000     0x7ffff7dfc000 r-xp    29000      0 /lib/x86_64-linux-gnu/ld-2.27.so
+    0x7ffff7ff4000     0x7ffff7ff6000 rw-p     2000      0 [anon_7ffff7ff4]
+    0x7ffff7ff6000     0x7ffff7ffa000 r--p     4000      0 [vvar]
+    0x7ffff7ffa000     0x7ffff7ffc000 r-xp     2000      0 [vdso]
+    0x7ffff7ffc000     0x7ffff7ffd000 r--p     1000  29000 /lib/x86_64-linux-gnu/ld-2.27.so
+    0x7ffff7ffd000     0x7ffff7ffe000 rw-p     1000  2a000 /lib/x86_64-linux-gnu/ld-2.27.so
+    0x7ffff7ffe000     0x7ffff7fff000 rw-p     1000      0 [anon_7ffff7ffe]
+    0x7ffffffde000     0x7ffffffff000 rw-p    21000      0 [stack]
+0xffffffffff600000 0xffffffffff601000 --xp     1000      0 [vsyscall]
+```
+
+`size`에 `1280`을 입력했을 때, `fd`와 `bk`의 값은 `0x7ffff7dcdca0`이다. 그리고, `libc`의 가상 주소의 범위는 `0x7ffff79e2000 ~ 0x7ffff7dcf000` 이므로 `fd` 값이 `libc`에 속하는 것도 알 수 있다.
+
+따라서, `libc base`인 `0x7ffff79e2000`와 `0x7ffff7dcdca0`의 차이를 통해 오프셋을 구해보면, `0x3ebca0`이 나온다.
+
+```
+pwndbg> p/x 0x7ffff7dcdca0 - 0x7ffff79e2000
+$1 = 0x3ebca0
+```
+
+그럼 이제 익스플로잇을 통해, `fd`나 `bk` 값을 구한 후 오프셋인 `0x3ebca0`을 빼주면, `libc base`를 Leak 할 수 있을 것이다.
+
+## 2. `fptr` Overwrite
+
+`Human` 구조체와 `Robot` 구조체는 크기가 같고, 멤버 변수의 위치도 같기 때문에 `human_func`에서 `Human` 구조체를 먼저 할당하여, `robot->fptr`의 위치인 `human->age`에 `libc base + one_gadget`을 대입해준 후, `free`해주면 해당 메모리 영역에 데이터가 남아있을 것이다.
+
+그 후 바로 `robot_func`를 호출하여 `Robot` 구조체를 선언하고 `robot->fptr`에 접근하면 해당 위치가 `NULL`이 아니라 원가젯의 주소가 위치할 것이므로, 해당 원가젯이 바로 수행될 수 있을 것이다.
+
+이는 모두 **`free`하기 전에 사용한 영역의 데이터를 초기화해주지 않아서 `UAF` 취약점이 존재**하기 때문에 가능한 방법이다.
+
+# Exploit 
 
