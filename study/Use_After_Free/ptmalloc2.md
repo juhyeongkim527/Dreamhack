@@ -206,9 +206,11 @@ ptmalloc은 이를 최대한 피하기 위해 최대 `64`개의 arena를 생성�
 
 2. `largebin`의 크기에 속하는 메모리를 할당할 때 청크를 조회하는 순서 : `tcache` -> `unsortedbin` -> `largebin`
 
-3. `fastbin`의 크기에 속하는 메모리가 해제될 때 들어가는 순서 : `tcache` -> `fastbin`
+3. `fastbin`의 크기에 속하는 메모리가 해제될 때 들어가는 순서 (`32bytes` <= size <=  `128bytes`) : `tcache` -> `fastbin`
 
-4. `fastbin`의 크기에 속하지 않은 메모리가 해제될 때 들어가는 순서 : `tcache` -> `unsortedbin` -> `smallbin` OR `largebin` (아래에서 과정 설명)
+4. `fastbin`의 크기에 속하지 않은 메모리가 해제될 때 들어가는 순서 (`128bytes` < size <= `1040bytes`) : `tcache` -> `unsortedbin` -> `smallbin` OR `largebin` (아래에서 과정 설명)
+
+5. `tcache`의 크기에 속하지 않은 메모리가 해제될 때 들어가는 순서 (`1040bytes` < size ) : ``unsortedbin` -> `largebin` (아래에서 과정 설명)
 
 **처음에 해제되면 전부 `unsortedbin`에 존재하다가, 메모리 할당 요청에 의해 `unsortedbin`이 탐색되는 경우, 이 과정에서 탐색된 청크들이 `smallbin`이나 `largebin`으로 분류됨 : 불필요한 연산을 줄이고, 성능을 최적화하기 위해**
 
