@@ -196,7 +196,7 @@ ptmalloc은 이를 최대한 피하기 위해 최대 `64`개의 arena를 생성�
 
 `tcache`는 각 쓰레드가 고유하게 갖는 캐시이기 때문에, ptmalloc은 `Race Condition`을 고려하지 않고 이 캐시에 접근할 수 있다. `arena`의 `bin`에 접근하기 전에 `tcache`를 먼저 사용하므로 `arena`에서 발생할 수 있는 `병목 현상`을 완화하는 효과가 있다.
 
-***`tcache`는 보안 검사가 많이 생략되어 있어서 공격자들에게 힙 익스플로잇의 좋은 도구로 활용될 수 있다.*** 아래에서 `tcache`를 활용한 메모리 할당과 해제 과정을 살필 수 있다.\
+***`tcache`는 보안 검사가 많이 생략되어 있어서 공격자들에게 힙 익스플로잇의 좋은 도구로 활용될 수 있다.*** 아래에서 `tcache`를 활용한 메모리 할당과 해제 과정을 살펴볼 수 있다.
 
 ![tcache in action](https://dreamhack-lecture.s3.amazonaws.com/media/d0f1bf96eb73beafa3fc6161067baac3fce665c582068d89141e502011f452c0.gif)
 
