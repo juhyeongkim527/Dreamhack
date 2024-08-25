@@ -3,7 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 
-void init() {
+void init()
+{
 	setvbuf(stdin, 0, 2, 0);
 	setvbuf(stdout, 0, 2, 0);
 }
@@ -20,12 +21,13 @@ int main()
 	printf("Center name: ");
 	read(0, center_name, 100);
 
-
-	if( !strncmp(cmd_ip, "ifconfig", 8)) {
+	if (!strncmp(cmd_ip, "ifconfig", 8))
+	{
 		system(cmd_ip);
 	}
 
-	else {
+	else
+	{
 		printf("Something is wrong!\n");
 	}
 	exit(0);
