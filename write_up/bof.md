@@ -92,10 +92,3 @@ payload += b'./flag'
 p.sendlineafter(b'meow? ', payload)
 p.interactive()
 ```
-
-
-
-
-
-
-
