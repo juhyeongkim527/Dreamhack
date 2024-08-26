@@ -1,3 +1,3 @@
 from pwn import *
 
-p = remote('host3.dreamhack.games', )
+p = remote('host3.dreamhack.games', 14577)
