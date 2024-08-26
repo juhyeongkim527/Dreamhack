@@ -53,7 +53,7 @@ def index():
 
 @app.route("/vuln")
 def vuln():
-    param = request.args.get("param", "")  # 이용자가 입력한 vuln 인자를 가져옴
+    param = request.args.get("param", "")  # 이용자가 입력한 vuln 인자를 가져옴 : URL에서 `"param"` 문자열의 값을 찾고, 없으면 `""` 공백을 저장
     return param  # 이용자의 입력값을 화면 상에 표시 : HTML 엔티티 코드로 변환하지 않음
 
 
