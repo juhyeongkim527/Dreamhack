@@ -198,7 +198,6 @@ print(p.recvuntil(b'}'))
 ```
 ### 참고 정리
 
-- `orw.c->orw` : `gcc -o orw orw.c` 
+- `orw.c->orw` : `gcc -o orw orw.c`
 - `orw.asm->orw.o` : `nasm -f elf64 orw.asm`
 - `orw.o->orw.bin` : `obcopy —dump-section .text=orw.bin orw.o`
-
