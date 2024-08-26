@@ -90,3 +90,48 @@ window.open("http://hacker.dreamhack.io/")
 
 `Stored XSS`와 `Reflected XSS`에 대해 [실습 모듈](https://learn.dreamhack.io/labs/2ec6c228-ff7e-46f1-9196-da5f5bd5f1f4)과 함께 조금 더 자세히 살펴보자.
 
+### Stored XSS : 서버에 `저장`
+
+`Stored XSS`는 **서버의 데이터베이스 또는 파일 등의 형태로 `저장`된 악성 스크립트를 조회할 때 발생하는 `XSS` 취약점이다.**
+
+대표적으로 게시물과 댓글에 악성 스크립트를 포함해 업로드 하는 방식이 있다. 게시물은 불특정 다수에게 보여지기 때문에 해당 기능에서 `XSS` 취약점이 존재하면 매우 높은 파급력을 가진다.
+
+아래의 실습 모듈은 사용자가 작성한 내용을 서버에 업로드한 뒤, HTML 형식으로 출력하는 동작을 수행한다. 
+
+여기에서, `Content` 필드에서 필터링이 일어나지 않아 `Stored XSS` 취약점이 발생한다. 해당 필드에 `<script>` 태그 혹은 `HTML 태그`를 삽입하고 반환되는 `HTML 코드`를 확인함으로써 `Stored XSS`의 발생 형태를 확인해볼 수 있다.
+
+`<script>` 태그를 주입하고, `alert(1);` Javascript 함수를 실행하는 것으로 `Stored XSS`를 수행해보자.
+
+참고로, `Title` 필드에는 결과에서 확인할 수 있듯이, 태그 안의 `<`와 `>` 기호가 각각 `&lt;`와 `&gt;`로 파싱되도록 필터링 되어서 `XSS` 취약점을 막아두었다.
+
+`&lt;`와 `&gt;`은 `HTML entity`로, 각각 `<`와 `>` 기호를 나타낸다. 브라우저는 이를 `<`, `>` 기호로 해석하지만, 이 문자를 `HTML 태그`로 해석하지 않고 `문자열` 그 자체로 해석하기 때문에 `<script>` 코드가 수행되지 않고 그대로 문자열이 출력된다.
+
+<img width="1141" alt="image" src="https://github.com/user-attachments/assets/ddd084d5-7aa7-4693-864b-eb33952d0b45">
+
+<img width="1116" alt="image" src="https://github.com/user-attachments/assets/6c3026f2-6209-403e-8776-0e86a42332a2">
+
+### Reflected XSS : 서버에 `요청`
+
+`Reflected XSS`는 **서버가 악성 스크립트가 담긴 `요청`을 출력할 때 발생한다.** 
+
+대표적으로 게시판 서비스에서 작성된 게시물을 조회하기 위한 ***검색창***에서 스크립트를 포함해 검색하는 방식이 있다. 
+
+이용자가 게시물을 검색하면 서버에서는 검색 결과를 이용자에게 반환한다. **일부 서비스에서는 검색 결과를 `응답에 포함`하는데, 검색 문자열에 악성 스크립트가 포함되어 있다면 `Reflected XSS`가 발생할 수 있습니다.**
+
+검색 결과를 응답에 포함하면, 위의 실습 모듈에서처럼 예시로 응답 내에 `<p>` 태그가 사용되고, 그 자식 요소로 `<script>` 코드가 실행될 수 있기 때문이다.
+
+`Reflected XSS`는 `Stored XSS`와는 다르게 **URL과 같은 이용자의 `요청`**에 의해 발생한다. 
+
+따라서 공격을 위해서는 다른 이용자를 악성 스크립트가 포함된 링크에 접속하도록 유도해야 하는데, 이용자에게 링크를 직접 전달하는 방법은 악성 스크립트 포함 여부를 이용자가 눈치챌 수 있기 때문에 주로 `Click Jacking` 또는 `Open Redirect` 등 다른 취약점과 연계하여 사용한다.
+
+아래의 실습 모듈은 게시판에서 게시물을 조회하는 기능을 수행한다. 
+
+여기에서, `<h3>` 태그에서 사용자 입력을 그대로 받아 서버가 출력하기 때문에 `Reflected XSS` 취약점이 발생한다. 해당 필드에 `<script>` 태그 혹은 `HTML 태그`를 삽입하고 반환되는 `HTML 코드`를 확인함으로써 `Reflected XSS`의 발생 형태를 확인해볼 수 있다.
+
+참고로,
+
+`<script>` 태그를 주입하고, `alert(1);` Javascript 함수를 실행하는 것으로 `Reflected XSS`를 수행해보자.
+
+<img width="1029" alt="image" src="https://github.com/user-attachments/assets/87447c62-993e-4b28-978e-4da3ebc81845">
+
+<img width="1050" alt="image" src="https://github.com/user-attachments/assets/21cecba6-dd24-4d68-be90-cf617bccded9">
