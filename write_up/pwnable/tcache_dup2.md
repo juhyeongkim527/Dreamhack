@@ -133,7 +133,7 @@ int main()
 
 ## 실패 이유 1. : `ex_wrong1.py`
 
-**그 이유는 더 공부해봐야 하겠지만 `tcache`에 청크를 추가하고 뺄 때 조작하는, `tc_idx` 값과 관련이 있었다.**
+**그 이유는 더 공부해봐야 하겠지만 `tcache`에 청크를 추가하고 뺄 때 조작하는, `tc_idx` 값과 관련이 있었다.** [참고](https://learn.dreamhack.io/34#2)
 
 `free`를 통해 `tcache`에 청크를 추가할 때는 `tc_idx` 값이 `1`증가하게 되고, `malloc`을 통해 `tcache`에서 청크를 빼내올 때는 `tc_idx` 값이 `1` 감소하게 된다. (참고로, `modify`로 `tcache poisoning`을 통해 `next`를 조작하여 청크를 추가할 때는 변하지 않는다.)
 
