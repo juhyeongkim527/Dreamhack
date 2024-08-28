@@ -144,9 +144,13 @@ int main()
 따라서, `create`를 연속 2번 해서 서로 다른 2개의 청크를 만든 후 `delete`를 2번 해줘서 `tcache`에 청크를 2개 추가하여 `tc_idx = 2`로 만들어준 후 위의 `1. 2. 3.` 과정을 다시 진행해주면 `tc_idx`의 영향을 받지 않고 정상적으로 익스플로잇 할 수 있다.\
 (**이걸로는 부족하기 때문에 아래의 실패 이유 2.도 잘 봐야함** )
 
+`tcache_dup`와 `Tcache Poisoning` 문제에서는 `Ubuntu 18.04, libc-2.27.so` 버전이었지만, 이번 문제에서는 `Ubuntu 19.10, libc-2.30.so`라 차이가 생기는 듯하다.
+
+**버전에 상관없이 `malloc`을 연속 2번 해주고, `free`를 2번 해주는 것은 익스플로잇 과정에 영향을 주지 않기 때문에 일단 `Tcache Poisoning` 관련 문제에서는 전부 해주는 습관을 갖자.**
+
 ### 수정할 부분
 
-`tcache_dup`과 `Tcache Poisoning`에서는 왜 됬는지와 `tc_idx`가 `0`이면 어디서 청크를 가져오는지
+`tcache_dup`과 `Tcache Poisoning`에서는 정확히 왜 됬는지와 `tc_idx`가 `0`이면 어디서 청크를 가져오는지
 
 ## 실패 이유 2. : `ex_wrong2.py`
 
