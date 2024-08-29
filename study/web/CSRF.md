@@ -167,6 +167,8 @@ def sendmoney(name):
 
 <img width="332" alt="image" src="https://github.com/user-attachments/assets/2dfdeb4e-7a08-477d-9c0e-c66b32f7c0da">
 
+<img width="1089" alt="image" src="https://github.com/user-attachments/assets/cfa19038-1ba4-4d07-9d17-ab10ec37510c">
+
 뭔가 예상으로는, 현재 페이지에서 내가 저걸 수행하면 URL이 안맞아서 에러가 뜨고, 실습 환경에서의 임의 이용자 컨디션은 잘 맞는 것 같다.
 
 ## `XSS`와 `CSRF`의 차이
