@@ -148,7 +148,9 @@ def read_url(url, cookie={"name": "name", "value": "value"}):
 
 왜냐하면 `xss_filter`로 인해, `onerror`와 `script`를 사용할 수 없기 때문에 `location.href`를 쓸 수 없으므로, `<img>` 태그의 `src` 속성을 이용하여 `/admin/notice_flag?userid=admin`에 어드민이 `HTTP Request`를 보내게 된다.
 
-`location.href`로 실제 페이지 로드를 트리거하지 않아도, `<img>`의 `src` 속성을 통해 `HTTP Request`를 보내면, 서버에서 **로컬호스트인** 어드민이 접근한 것과 같은 동작을 하기 때문에 `/admin/notice_flag`에 방문하여 `memo_text`에 `FLAG`가 추가되게 된다.
+`location.href`로 실제 페이지 로드를 트리거하지 않아도, `<img>`의 `src` 속성을 통해 **로컬호스트에서** `HTTP Request`를 보내면, 서버에서 **로컬호스트인** 어드민이 접근한 것과 같은 동작을 하기 때문에 `/admin/notice_flag`에 방문하여 `memo_text`에 `FLAG`가 추가되게 된다.
+
+당연히 로컬호스트가 아닌 일반 IP에서 접근하면, 일반 IP에서 엔드포인트에 접근한 것과 같은 동작을 한다.
 
 <img width="471" alt="image" src="https://github.com/user-attachments/assets/0f04dcaa-bde1-4a3b-b7c6-641c2676e9ad">
 
