@@ -144,13 +144,13 @@ substr('ABCD', 2, 2) = 'BC'
 
 쿼리문은 `SELECT uid FROM user_table WHERE uid='' and upw=''`이며, 사용자의 입력을 `uid`와 `upw`에 문자열('')로 감싸서 대입해준다.
 
-- **uid=guest, upw=guest를 입력해 query 결과를 확인하세요.**
+### 목표 1. uid=guest, upw=guest를 입력해 query 결과를 확인하세요.**
 
 첫 번째 목표를 달성하기 위해서는 그냥 `uid`와 `upw` 필드에 `guest`를 입력해주면 되고, 아래와 같이 `Query Result`로 `uid` 값이 출력되는 것을 확인할 수 있다.
 
 <img width="793" alt="image" src="https://github.com/user-attachments/assets/59c67bc9-591a-4a1b-b22d-fd70da4a72be">
 
-- **SQL 인젝션 공격을 통해 admin의 비밀번호를 출력하세요.**
+### 목표 2. SQL 인젝션 공격을 통해 admin의 비밀번호를 출력하세요.**
 
 해당 쿼리문에는 사용자의 입력이 쿼리문 내에 포함되어 있기 때문에, `SQL Injection` 공격으로 로그인 인증을 우회할 수 있다.
 
@@ -190,8 +190,8 @@ substr('ABCD', 2, 2) = 'BC'
 
 비밀 번호의 힌트는 영어 소문자 5글자 과일이며, 목표는 아래와 같다.
 
-- **uid=guest, upw=guest를 입력해 guest로 로그인해보세요.**
+### 목표 1. **uid=guest, upw=guest를 입력해 guest로 로그인해보세요.**
 
-- **admin으로 로그인 할 수 있는 입력을 작성하세요.**
+### 목표 2. **admin으로 로그인 할 수 있는 입력을 작성하세요.**
 
-- **Blind SQL 인젝션 공격을 통해 admin의 비밀번호로 로그인하세요.**
+### 목표 3. **Blind SQL 인젝션 공격을 통해 admin의 비밀번호로 로그인하세요.**
