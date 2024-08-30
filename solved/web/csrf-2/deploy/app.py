@@ -128,6 +128,4 @@ def change_password():
 
 app.run(host="0.0.0.0", port=8000)
 
-# <img src="/change_password?pw=admin&sessionid=" + document.cookie>
-# <img src="/change_password?pw=admin&sessionid=[admin로 login 후 세션 값]">
-# guest로 세션은 왜 되지?
+# <img src="/change_password?pw=admin>
