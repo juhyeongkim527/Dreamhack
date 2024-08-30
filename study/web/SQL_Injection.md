@@ -188,10 +188,40 @@ substr('ABCD', 2, 2) = 'BC'
 
 따라서, Blind SQL Injection 공격을 수행해 정보를 추출해야 하므로, `substr` 등 앞에서 다룬 내용을 조합하여 Blind SQL Injection 공격을 수행해보자.
 
-비밀 번호의 힌트는 영어 소문자 5글자 과일이며, 목표는 아래와 같다.
+비밀 번호의 힌트는 5글자의 영어 소문자 과일이며, 목표는 아래와 같다.
 
 ### 목표 1. **uid=guest, upw=guest를 입력해 guest로 로그인해보세요.**
 
+SQL Injection의 목표 1.과 동일하게 그냥 `uid`, `upw`에 `guest`를 입력해주면 된다.
+
 ### 목표 2. **admin으로 로그인 할 수 있는 입력을 작성하세요.**
 
+이것도 SQL Injection의 목표 2.와 동일하게 `uid`에 `admin' --`을 입력해주면 된다.
+
 ### 목표 3. **Blind SQL 인젝션 공격을 통해 admin의 비밀번호로 로그인하세요.**
+
+이제 `Blind SQL Injection`기법을 통해 `substr` 함수를 활용하여 `upw` 값을 한자리씩 찾아가면 된다.
+
+`admin' AND substr(1, 1) = 'a'`부터 `True`가 리턴되는 Query Result의 Login Success! 결과가 나올 때 까지, 계속 점진적으로 `position`과 비교 문자를 바꿔가며 검증해보면 된다.
+
+첫 번째 문자열은 `admin' and substr(1, 1) = 'b'`로 구할 수 있었고,
+
+<img width="780" alt="image" src="https://github.com/user-attachments/assets/ecc43129-2253-43bc-a28f-d38199099c7f">
+
+두 번째 문자열은 `admin' and substr(2, 1) = 'e'`,
+
+세 번째 문자열은 `admin' and substr(3, 1) = 'r'`로 구할 수 있는 것을 통해 berry일 것이라고 예측한 후, 
+
+`admin' and substr(4, 1) = 'r'`, `admin' and substr(5, 1) = 'y'`를 확인해보며 `upw`가 berry임을 확인할 수 있었다.
+
+참고로, 쿼리문의 `SELECT`, `AND` 등은 전부 소문자로 써도 되긴 한다.
+
+## Blind SQL Injection 공격 스크립트
+
+Blind SQL Injection 기법은 한 바이트씩 비교하여 공격하는 방식이기 때문에, 다른 공격에 비해 많은 시간을 들여야 하는 문제가 있다.
+
+이런 문제를 해결하기 위해서 해결책으로는 공격을 자동화하는 스크립트를 작성하는 방법이 있다.
+
+이러한 자동화 공격 스크립트를 작성하기 위해서 `requests`라는 모듈을 활용할 수 있다.
+
+파이썬은 `HTTP` 통신을 위한 다양한 모듈이 존재하는데, `requests` 모듈은 다양한 메소드를 이용하여 `HTTP Request`를 보내고 응답 또한 확인할 수 있다.
