@@ -67,9 +67,11 @@ def flag():
 
 `form`으로 입력 받은 `param`에 저장된 값을 가져오고, 무작위 16바이트 길이의 바이트 문자열을 생성 후 16진수로 변환하여 `session_id`에 저장해준다.
 
-바로 아래에서 전역 변수로 선언된 `session_storage = {}`에 `session_storage[session_id] = 'admin'를 통해 방금 생성한 `session_id`를 `key`로 하고, `admin`을 `value`로 dict에 저장한다.
+그리고 전역 변수로 선언된 `session_storage = {}`에 `session_storage[session_id] = admin`으로 **방금 생성한 `session_id`를 `key`로 하고, `admin`을 `value`로 가지도록 `dict`에 저장한다.**
 
-이후 `check_csrf` 함수를 통해 `param`을 전달해주고, `cookie`를 `sessionid = session_id`로 선언하여 전달해준다.
+여기서 쿠키에 저장될 `session_id`와 관리자 계정인 `admin`이 저장되었기 때문에 잘 기억해두고 있자.
+
+이후 `check_csrf` 함수를 통해 폼으로 입력 받은 `param`을 전달해주고, **`cookie`를 `sessionid = session_id`로 선언하여 전달해준다.**
 
 ```
 def read_url(url, cookie={"name": "name", "value": "value"}):
@@ -105,7 +107,9 @@ def check_csrf(param, cookie={"name": "name", "value": "value"}):
     return read_url(url, cookie)
 ```
 
-`check_csrf`와 `read_url` 함수는 이전 문제들과 같이 로컬호스트로  어드민이 `vuln` 페이지에 방문하는 시뮬레이션을 해주는 기능을 한다.
+`check_csrf`와 `read_url` 함수는 이전 문제들과 같이 로컬호스트로 관리자 계정이 `/vuln` 페이지에 방문하는 시뮬레이션을 해주는 기능을 한다.
+
+**여기서 잘 보면, `read_url`에서 `/flag`로 부터 전달 받은 쿠키인, `admin`을 `value`로 가지는 `session_id`를 쿠키에 추가해주는 코드가 있고(`driver.add_cookie(cookie)`), `/vuln`에서 `XSS` 취약점이 존재하기 때문에 이를 잘 기억해두자.**
 
 참고로 `cookie.update`는 쿠키에 `domain : 127.0.0.1`이라는 항목을 추가하는 함수이다.
 
@@ -143,17 +147,19 @@ def check_csrf(param, cookie={"name": "name", "value": "value"}):
 
 폼에서 입력 받은 `username`과 `password` 값을 저장한다.
 
-이후 `users`에서 `username`을 `key`로 하여 해당 `key`에 저장된 값을 `pw`에 저장한다. 만약 여기서 `username`이 `users`에 존재하지 않는다면 `except`에서 경고 출력 후 종료된다.
+이후 `pw = users[username]`을 통해, `users`에서 `username`이 `key`값인 `value`를 `pw`에 저장한다. 만약 여기서 `username`이 `users`에 존재하지 않는다면 `except`에서 경고 출력 후 종료된다.
 
-이후 `if pw == password`를 통해, `username`에 해당하는 `value`와 입력 받은 `password`가 동일한지 확인한다.
+이후 `if pw == password`를 통해, `users` 딕셔너리에서 `username`(`key`)에 해당하는 `value`와 입력 받은 `password`가 동일한지 확인한다.
 
-조건에 맞다면, `resp = make_response(redirect(url_for('index')))`를 통해 `index` 페이지로 리디렉션하는 응답 메시지를 생성해주고 마지막에 `return` 해준다.
+조건에 맞다면, `resp = make_response(redirect(url_for('index')))`를 통해 `index` 페이지로 리디렉션하는 응답 메시지를 생성해주고 제일 마지막에서 `return` 해서 이동해준다. (`index`는 `@app.route("/") def index()`를 뜻한다.)
 
-중간에는 `session_id`를 위에서와 같이 랜덤하게 만들어준 후, `session_storage`에 `session_id`를 `key`로 하고, `username`을 `value`로 `dict`에 추가해준다.
+중간에는 `session_id`를 `/flag`에서 처럼 랜덤하게 만들어준 후, `session_storage`딕셔너리에 `session_id`를 `key`로 하고, `username`을 `value`로 추가해준다.
 
-이후 `resp.set_cookie('sessionid', session_id)`를 통해 `sessionid : session_id`인 쿠키를 응답 메시지와 함께 전달해준다.
+이후 `resp.set_cookie('sessionid', session_id)`를 통해 `sessionid : session_id`인 쿠키를 `resp`에 세팅해줘서, 응답 메시지와 함께 `index` 페이지로 `return` 될 때 쿠키가 세팅되도록 한다.
 
-조건에 걸리지 않았다면 경고문을 표시한 후 이전 페이지(`login`)로 이동한다.
+참고로, 바로 위 두 줄 부분은 그냥 일반적인 로그인 시스템에서 `username`에 해당하는 `session_id`를 쿠키로 저장해주기 위한 부분이라고 보면 된다.
+
+위의 조건에 걸리지 않았다면 과정을 생략하고 경고문을 표시한 후 이전 페이지(`login`)로 이동한다.
 
 ## 엔드포인트 : `/change_password`
 
@@ -171,15 +177,17 @@ def change_password():
     return 'Done'
 ```
 
-`index` 페이지에는 보이지 않았던 엔드포인트이다. 해당 엔드포인트에 `pw`로 전달된 파라미터 값을 저장해주고, 쿠키에서 `sessionid` 값도 저장해준다.
+`index` 페이지에는 보이지 않았던 엔드포인트이다. 해당 엔드포인트에 **`pw`로 전달된 파라미터 값을 저장해주고, 쿠키에서 `sessionid` 값도 받아와서 저장해준다.**
 
-이후, `session_storage`에서 가져온 `session_id`를 `key`로 하는 `value`를 `username`에 대입해준다.
+이후, `username = session_storage[session_id]`을 통해, `session_id`가 `key`인 `value`를 `username`에 대입해준다.
 
-만약 `session_id`가 존재하지 않은 경우 `index` 페이지로 되돌리고 알림문을 전달한다.
+만약 `session_id`가 존재하지 않은 경우 `index` 페이지로 되돌리고 `please login` 문자열을 전달한다.
 
-`username`을 찾은 경우, `users[username] = pw`를 통해 `username`을 `key`로 하는 `value` 값을 전달해준 파라미터로 대입할 수 있다.
+**`username`을 찾은 경우, `users[username] = pw`를 통해 `username` 키의 `value` 값을, 전달해준 파라미터 값(`pw`)으로 대입하여 딕셔너리를 수정해준다.**
 
-**여기서 취약점이 존재하는데, 만약 `session_id`를 `key`로 하는 `value`가 `"admin"`이고, 파라미터로 전달한 `pw`를 내가 바꾸고 싶은 비밀번호로 조작한다면 해당 비밀 번호로 `admin` 계정을 바꿀 수 있을 것이다.**
+**여기서 취약점이 존재하는데, 만약 `session_id`를 `key`로 하는 `value`가 `"admin"`이여서 `username == "admin"`이 되고, 파라미터로 전달한 `pw`를 내가 바꾸고 싶은 비밀번호로 조작한다면 해당 비밀 번호로 `admin` 계정을 바꿀 수 있을 것이다.**
+
+그럼, `/login` 페이지에서 `username == admin`, `password = [pw로 바꾼 비밀번호]`를 입력해준 후, `users` 딕셔너리에서 값을 참조할 때 `pw == pasword` 조건이 맞게 되므로 관리자 계정으로 로그인할 수 있게 된다.
 
 ## 엔드포인트 : `/`
 
@@ -197,9 +205,13 @@ def index():
 
 현재 쿠키에서 `sessionid` 값을 가져와서 `session_id`에 저장한다. 이후 `session_storage`에서 `session_id`를 `key`로 하는 `value`를 `username`에 대입해준다. (없으면 `index` 페이지로 돌아가서 알림을 띄워준다.)
 
-`username == "admin"`인 경우 `FLAG`를 출력해준다. 따라서, 현재 쿠키의 `session_id`에 해당하는 `value`가 `admin`인 경우 플래그를 획득할 수 있다.
+`username == "admin"`인 경우 `FLAG`를 출력해준다. 
 
-위의 `/login`에서 로그인한 `username`와 `session_id`를 `dict`로 묶어서 설정해주며 쿠키를 `set` 해주었기 때문에, `admin` 계정으로 로그인해서 `index` 페이지로 돌아오면 `FLAG`가 출력될 것이다.
+**따라서, 현재 쿠키의 `sessionid` 값인 `session_id`가 `"admin"`인 경우 플래그를 획득할 수 있다.**
+
+`/login`에서 로그인한 `username`와 `session_id`를 `session_storage`에 저장하며 `resp.set_cookie('sessionid', session_id)`을 통해 로그인한 `session_id`를 쿠키로 설정해주었기 때문에, 
+
+`admin` 계정으로 로그인해서 `index` 페이지로 돌아오면 `FLAG`가 출력될 것이다.
 
 # Exploit 설계
 
