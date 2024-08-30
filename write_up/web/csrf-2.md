@@ -206,3 +206,56 @@ def index():
 결국 우리가 해야하는 것은 `login` 페이지에서 관리자(`admin`)계정으로 로그인하여 `index` 페이지에서 `FLAG`를 획득하는 것이다.
 
 그러기 위해서는 `admin`의 `pw`를 바꿔야 하는데, 이는 `/change_password`에서 바꿀 수 있을 것이다.
+
+그런데, `/change_password`에 일반 계정으로 들어가서 `?pw=`로 파라미터를 세팅해서 원하는대로 바꿔준다고 해도, 일반 계정으로 들어갔을 때의 `session_id` 값에 해당하는 `value`는 `admin`이 아니다.
+
+왜냐하면, `session_id`는 `/login` 페이지에서 로그인에 성공한 경우, 로그인한 `username`을 `value`로 `session_id`가 쿠키로 설정되는데, 일반 계정 사용자는 `admin`의 비밀 번호를 모르기 때문에 `guest`로 로그인할 수 밖에 없기 때문이다.
+
+따라서, `guest`로 로그인 한 후 `/change_password` 페이지에서 `?pw = abc`로 바꾸어도 `guest`로만 로그인이 되고, `admin`으로는 로그인이 되지 않는다.
+
+<img width="332" alt="image" src="https://github.com/user-attachments/assets/df9e5f1f-f1e4-4112-b65b-9c0e0a628504">
+
+<img width="327" alt="image" src="https://github.com/user-attachments/assets/4cd9e0e6-2632-4491-ad13-1efadd924a9f">
+(`password`를 `abc`로 입력한 경우 로그인이 잘 된다.)
+
+따라서, 결국 `admin` 계정의 `session_id`를 쿠키로 가지는 임의 이용자가 `/change_password`에 방문하여 우리가 원하는 `?pw`로 바꿔주는 상황이 필요하다.
+
+앞에서 살펴 본 `/flag` 엔드포인트를 다시 한번 보자.
+
+`/flag` 엔드 포인트에서 폼으로 `param`에 입력한 값을 가져오면서, `session_id`의 `value`를 `admin`으로 설정해준 후, `check_csrf`와 `read_url` 함수를 호출하여 셀레늄을 통해 **`/vuln` 페이지에 접속하면서 `session_id`를 쿠키에 추가해준다.**
+
+여기서, `driver.add_cookie(cookie)`를 해주기 때문에 `cookie`가 `admin`이 `value`인 `session_id`로 설정되게 된다. (**쿠키가 이미 `guest`의 `session_id`로 존재했어도 같은 이름의 쿠키를 업데이트 하거나 추가해주면 최신 쿠키로 바뀌는 것 기억하자.**)
+
+**따라서, `/flag` 엔드 포인트에서 `/vuln` 페이지에 접근하면 쿠키가 `admin`의 `session_id`로 설정되기 때문에, `/change_password?pw=[원하는 패스워드]`로만 `HTTP Request`를 요청하도록 하면 된다.**
+
+이는 `/vuln` 페이지에서 `return param`을 통해 임의 이용자가 입력한 스크립트가 실행될 수 있도록 하기 때문에 `<img src = "/change_password?pw=abc">`를 전달해주어서 셀레늄을 통해 `HTTP Request`를 발생하도록 하면 될 것이다.
+
+그럼 아래와 같이 `admin`의 비밀 번호가 바뀌어서 우리가 입력해준 `abc`로 로그인하여 `FLAG`를 획득할 수 있게 된다.
+
+<img width="448" alt="image" src="https://github.com/user-attachments/assets/0b6f3d85-cb3c-4d99-87d2-772bb10e17c1">
+
+<img width="274" alt="image" src="https://github.com/user-attachments/assets/c3368c52-d571-48ee-a14a-44961b1dfed5">
+
+<img width="922" alt="image" src="https://github.com/user-attachments/assets/85b5c6a5-a891-4935-aab2-5bbfd56da4ad">
+
+처음에, `session_id`가 헷갈리고 쿠키가 아닌 파라미터로 `session_id`를 전달해야 하나 해서 `"&session_id=" + document.cookie"를 해주거나, 잘못된 방법으로 `guest`의 `session_id`를 개발자 모드에서 복사해서 `&session_id=~~~` 처럼 추가해주기도 하였는데,
+
+이렇게 하면 당연히 로그인이 되는 이유가 사실 `/flag`를 통해 `/change_password`에 접속하면 **파라미터가 아닌 쿠키**에서 `session_id`를 가져오기 때문에 파라미터로 전달한 `session_id`는 아무 쓰임이 없고,
+
+- `session_id = request.cookies.get('sessionid', None)`
+
+앞에서 말했듯이 `read_url`을 통해 `admin`의 `session_id`를 쿠키로 자동 설정해주기 때문에 신경 쓸 필요가 없다.
+
+문제를 풀 때 `session_id`가 워낙 많은 엔드 포인트에서 나와서 헷갈렸는데, **익스플로잇에서 직접적으로 조작해야 하는 부분(`/flag`, `/change_password`)과 간접적으로 참고만 하는 부분(`/login`, `/`)을 잘 구분하자.**
+
+## 참고
+
+`HTTP Request`가 잘 발생하는지 여부는 `csrf-1` 문제에서 처럼 [드림핵 툴즈](https://tools.dreamhack.games/requestbin/stvybtg)를 이용하면 된다.
+
+`https://stvybtg.request.dreamhack.games` 링크가 랜덤으로 생성되었을 때, 해당 링크로 `/flag` -> `/vuln` 엔드포인트에서 `HTTP Request`가 잘 요청되어 `CSRF` 공격이 가능한지 확인해보려면,
+
+`<img src="https://stvybtg.request.dreamhack.games/change_password?pw=abc">`를 입력해보면 아래와 같이 `HTTP Request`와 쿼리파라미터(`pw`)가 잘 전달되는 것을 확인할 수 있다.
+
+<img width="1047" alt="image" src="https://github.com/user-attachments/assets/54f6f840-fddc-4776-8d8f-a5b0d0b3c00f">
+
+<img width="922" alt="image" src="https://github.com/user-attachments/assets/3a89c26a-8d3f-4142-a7a5-5b79fbfe900c">
