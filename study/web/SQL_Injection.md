@@ -377,8 +377,6 @@ http://example.com/login?uid=admin%27+and+substr%28upw%2C1%2C1%29%3D%274%27--+&u
 
 특수 문자들을 `URL`에 사용할 수 있도록 인코딩 되어서 위와 같은 형식으로 나오고, `uid` 파라미터에는 지정해준 쿼리문이 잘 전달되고 마지막에 주석인 `--`과 함께 `upw`에는 아무 파라미터도 전달되지 않는 것을 확인할 수 있다.
 
-### 정리
-
-`인젝션`과 `SQL Injection`, 그리고 이를 응용하는 공격 기법인 `Blind SQL Injection`에 대해서 공부해보았다. 
+그럼 여기까지 `인젝션`과 `SQL Injection`, 그리고 이를 응용하는 공격 기법인 `Blind SQL Injection`에 대해서 공부해보았다. 
 
 실습 모듈에서는 데이터를 조회하는 `SELECT`만을 사용했지만, `UPDATE`와 `DELETE`에서 SQL Injection이 발생하면 임의 데이터를 갱신하고, 삭제할 수도 있다.
