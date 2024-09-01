@@ -121,3 +121,176 @@ MongoDB의 **연산자**들은 아래와 같다.
 - `db.inventory.find({ $expr: { $gt: ["$qty", "$ordered"] } })` : `qty` 필드 값이 `ordered` 필드 값보다 큰 `Document`를 리턴
 - `db.inventory.find({ item: { $regex: /^p.*/ } })` : `item` 필드의 값이 `"p"`로 시작하는 `Document`를 리턴
 - `db.inventory.find({ $text: { $search: "coffee" } })` : `"coffee"`라는 문자열이 포함된 필드 값을 가지는 `Document`를 리턴 
+
+## SQL, MongoDB 기본 문법 비교 
+
+### `SELECT`
+
+#### SQL
+
+1. `SELECT * FROM account;`
+
+2. `SELECT * FROM account WHERE user_id="admin";`
+
+3. `SELECT user_idx FROM account WHERE user_id="admin";`
+
+#### MongoDB
+
+1. `db.account.find()`
+
+2. `db.account.find({ user_id : "admin" })`
+
+3. 
+```
+db.account.find(
+  { user_id: "admin" },
+  { user_idx:1, _id:0 }
+)
+```
+
+### `INSERT`
+
+#### SQL
+
+1. `INSERT INTO account(user_id,user_pw,) VALUES ("guest", "guest");`
+
+#### MongoDB
+
+1. `db.account.insertOne({ user_id: "guest", user_pw: "guest" })`
+
+### `DELETE`
+
+#### SQL
+
+1. `DELETE FROM account;`
+
+2. `DELETE FROM account WHERE user_id="guest";`
+
+#### MongoDB
+
+1. `db.account.remove()`
+
+2. `db.account.remove({user_id: "guest"})`
+
+### `UPDATE`
+
+#### SQL
+
+1. `UPDATE account SET user_id="guest2" WHERE user_idx=2;`
+
+#### MongoDB
+
+1. 
+```
+db.account.updateOne(
+  { user_idx: 2 },
+  { $set: { user_id: "guest2" } }
+)
+```
+
+## 2. Redis
+
+`Redis`는 `Key-Value`의 쌍을 가진 데이터를 저장한다.
+
+제일 큰 특징은 다른 데이터베이스와 다르게 **메모리 기반의 DBMS**라는 것이다.
+
+메모리를 사용하여 데이터를 저장하고 접근하기 때문에, 읽고 쓰는 작업을 다른 DBMS보다 훨씬 빠르게 수행할 수 있다.
+
+하지만 저장 공간에는 한계가 있기 때문에 **다양한 서비스에서 임시 데이터를 캐싱하는 용도**로 주로 사용하고 있다.
+
+아래 코드는 Redis에서 데이터를 추가하고, 조회하는 명령어의 예시이다. [공식 문서](https://redis.io/commands)에서 명령어들을 살펴볼 수 있다.
+
+```
+$ redis-cli
+
+127.0.0.1:6379> SET test 1234 # SET key value
+OK
+
+127.0.0.1:6379> GET test # GET key
+"1234"
+```
+
+### 데이터 조회 및 조작 명령어
+
+| 명령어 | 구조                             | 설명                    |
+|--------|----------------------------------|-------------------------|
+| GET    | `GET key`                       | 데이터 조회             |
+| MGET   | `MGET key [key ...]`            | 여러 데이터를 조회      |
+| SET    | `SET key value`                 | 새로운 데이터 추가      |
+| MSET   | `MSET key value [key value ...]`| 여러 데이터를 추가      |
+| DEL    | `DEL key [key ...]`             | 데이터 삭제             |
+| EXISTS | `EXISTS key [key ...]`          | 데이터 유무 확인        |
+| INCR   | `INCR key`                      | 데이터 값에 1 더함      |
+| DECR   | `DECR key`                      | 데이터 값에 1 뺌        |
+
+### 관리 명령어
+
+| 명령어      | 구조                        | 설명                 |
+|-------------|-----------------------------|----------------------|
+| INFO        | `INFO [section]`            | DBMS 정보 조회       |
+| CONFIG GET  | `CONFIG GET parameter`      | 설정 조회            |
+| CONFIG SET  | `CONFIG SET parameter value`| 새로운 설정을 입력   |
+
+## 3. CouchDB
+
+`CouchDB` 또한 MongoDB와 같이 `JSON` 형태인 `Document`를 저장한다.
+
+**이는 웹 기반의 DBMS로, `REST API` 형식으로 요청을 처리한다.** 다음은 각 메소드에 따른 기능 설명이다.
+
+| 메소드  | 기능 설명                 |
+|---------|--------------------------|
+| POST    | 새로운 레코드를 추가합니다.  |
+| GET     | 레코드를 조회합니다.         |
+| PUT     | 레코드를 업데이트합니다.     |
+| DELETE  | 레코드를 삭제합니다.         |
+
+아래 코드는 `HTTP` 요청으로 레코드를 업데이트(`PUT`)하고, 조회(`GET`)하는 예시이다.
+
+```
+$ curl -X PUT http://{username}:{password}@localhost:5984/users/guest -d '{"upw":"guest"}'
+{"ok":true,"id":"guest","rev":"1-22a458e50cf189b17d50eeb295231896"}
+
+$ curl http://{username}:{password}@localhost:5984/users/guest
+{"_id":"guest","_rev":"1-22a458e50cf189b17d50eeb295231896","upw":"guest"}
+```
+
+CouchDB에서는 서버 또는 데이터베이스를 위해 다양한 기능을 제공한다.
+
+그 중 `_` 문자로 시작하는 URL이나 필드는 **특수 구성 요소**를 나타낸다.
+
+다음은 각 구성 요소에 대한 설명이며, 자세한 정보는 [공식 문서](https://docs.couchdb.org/en/latest/api/index.html)를 통해 확인할 수 있다.
+
+### SERVER
+
+| 요소         | 설명                                  |
+|--------------|---------------------------------------|
+| `/`          | 인스턴스에 대한 메타 정보를 반환합니다.    |
+| `/all_dbs`   | 인스턴스의 데이터베이스 목록을 반환합니다.  |
+| `/utils`     | 관리자페이지로 이동합니다.                  |
+
+- `curl http://localhost:5984/`
+
+- `curl http://localhost:5984/_all_dbs`
+
+- `http://localhost:5984/_utils`
+
+### Database
+
+| 요소              | 설명                                                        |
+|-------------------|------------------------------------------------------------|
+| `/db`             | 지정된 데이터베이스에 대한 정보를 반환합니다.                         |
+| `/{db}/all_docs`  | 지정된 데이터베이스에 포함된 모든 도큐먼트를 반환합니다.                 |
+| `/{db}/find`      | 지정된 데이터베이스에서 JSON 쿼리에 해당하는 모든 도큐먼트를 반환합니다. |
+
+- `curl http://localhost:5984/users`
+
+- `curl http://localhost:5984/users/_all_docs`
+
+---
+```
+curl -X POST http://localhost:5984/users/_find -H "Content-Type: application/json" -d '{
+  "selector": {
+    "upw": "guest"
+  }
+}'
+```
