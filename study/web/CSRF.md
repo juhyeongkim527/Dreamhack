@@ -149,27 +149,62 @@ def sendmoney(name):
 
 3. `<link rel="stylesheet" href="/sendmoney?to=Dreamhack&amount=10000">`
 
-4. `<script>location.replace('/sendmoney?to=Dreamhack&amount=10000')</script>`
-
 <img width="881" alt="image" src="https://github.com/user-attachments/assets/797a3d94-4600-49d2-a7a4-5797f027b82d">
 
-### 수정할 부분
+### 참고
 
 `<img src="csrf" onerror="location.href = '/sendmoney?to=Dreamhack&amount=10000''">`
 
-이건 왜 안되는지 잘 모르겠다. `fetch`는 `URL`을 이동하지는 안히지만, `HTTP Request`를 보내는 게 확실하고, `location.href`는 `URL`을 이동시킨다. 왜 이건 안될까 ?
-
-`<script>window.open('/sendmoney?to=Dreamhack&amount=10000')</script>`
-`<script>location.replace('/sendmoney?to=Dreamhack&amount=10000')</script>`
-`<script>location.href = '/sendmoney?to=Dreamhack&amount=10000'</script>`
-
-하다가 발견했는데, `<script>window.open('/sendmoney?to=Dreamhack&amount=10000')</script>`를 쓰면, `location.href`나 `locatio.replace`를 써서 뜨던 아래의 창이 새창에 뜨면서 현재 창에서는 `CSRF`가 잘 수행된다.
+처음에 이렇게 스크립트를 작성하면 아래와 같이, `location.href`가 이동하며 에러를 나타내는 페이지가 떠서 왜 안되지라는 의문이 들었었다.
 
 <img width="332" alt="image" src="https://github.com/user-attachments/assets/2dfdeb4e-7a08-477d-9c0e-c66b32f7c0da">
 
+잘 생각해보면, `fetch`와 `location.href`는 서로 다른 동작을 하는 코드이다.
+
+---
+`fetch`는 `URL`을 이동시키지 않고, 해당 주소로 비동기적인 `api` 요청(`HTTP Request`)을 해서 서버측의 `send`라는 함수를 호출해 리턴되는 데이터를 받아오는 코드이고,
+
+`location.href`는 아예 현재 페이지에서 `URL`을 이동시키는 코드이다. (브라우저의 주소 입력창 `URL` 내용이 바뀐다.)
+
+결국 두 코드가 모두 서버에 `HTTP Request`를 보내어 서버측의 `send` 함수를 실행시키기는 것은 동일하기 때문에 실제 `CSRF` 공격에 성공하는 것은 동일하다.
+
+그런데 왜 `location.href`는 페이지에 에러가 뜨는 것일까? 아래의 세 코드를 보자.
+
+1. `<script>window.open('/sendmoney?to=Dreamhack&amount=10000')</script>`
+
+2. `<script>location.replace('/sendmoney?to=Dreamhack&amount=10000')</script>`
+
+3. `<script>location.href='/sendmoney?to=Dreamhack&amount=10000'</script>`
+
+세 코드 전부 `URL`을 이동시키는 코드이다.
+
+그런데 현재 창을 이동시키는 `2.`, `3.` 코드와 달리, 새 창을 띄우는 `1.` 코드는 똑같이 새 창에서는 동일한 에러 페이지가 뜨긴하지만, 현재 창에서는 공격에 성공한 아래의 결과를 확인할 수 있다.
+
 <img width="1089" alt="image" src="https://github.com/user-attachments/assets/cfa19038-1ba4-4d07-9d17-ab10ec37510c">
 
-뭔가 예상으로는, 현재 페이지에서 내가 저걸 수행하면 URL이 안맞아서 에러가 뜨고, 실습 환경에서의 임의 이용자 컨디션은 잘 맞는 것 같다.
+`location.href`로 실습 환경에서 자신이 현재 창이나 새 창을 입력한 `URL`으로 이동시킬 때, `"nonexistent from_user"`라는 메세지가 발생한 것을 보아, 실습 모듈에서 `URL`을 이동할 때 `from_user`라는 필드 값이 입력되지 않아서 에러 메세지가 발생하는 것이다.
+
+하지만, 결국 서버에 `HTTP Request`를 요청하고 `send` 함수를 실행함으로써 `CSRF` 공격에 성공한 것은 맞기 때문에, 실습 환경에서 임의 사용자 6명이 해당 페이지에 방문할 때는 `from_user` 필드가 존재하기 때문에 위 세 코드 전부 공격은 잘 성공할 것이다. 
+
+**여기서, `CSRF` 공격의 목적과 의도에 대해서 다시 상기해보자.**
+
+`CSRF` 공격의 의도는 **임의 이용자가 눈치채지 못하게 악성 스크립트를 실행**해서 공격자가 원하는 수행을 하도록 의도하는 것이며, **이를 위해 서버에 `HTTP Request`를 보내는 것이 목적이라고 하였다.**
+
+`fetch`와 같이 **임의 이용자가 눈치채지 못하게 현재 `URL`을 그대로 두고 `HTTP Request`를 보내는 것**은 `CSRF`의 공격 의도와 목적에 전부 맞지만, **`URL` 자체를 바꿔서 리다이렉션하는 `location.href` 코드는 당연히 임의 이용자가 공격을 눈치챌 수 있기 때문에**, 애초에 옳은 방식이 아니긴 하다.
+
+또한 **"~~로 리다이렉션하라."**는 코드는 브라우저의 보안 문제 때문에 실행되지 못하도록 막아버리는 경우가 존재하기 때문에, 애초에 `location.href`로 `URL`을 이동시키는 것은 좋지 않은 공격이다.
+
+그리고 추가로 하나 더, 송금 기능처럼 서버측의 민감한 데이터가 바뀌는 로직들은 `URL`에 파라미터로 값이 드러나는 `GET` 메소드가 아니라, `POST` 메소드로 호출되도록 구현되어 있다.
+
+따라서, 아예 `location.href`와 같이 단순한 `GET` 메소드를 사용하는 공격은 사용할 수도 없는 경우가 일반적이다.
+
+그리고 `fetch`는 `GET`, `POST` 메소드를 활용하여 `HTTP` 요청 **헤더와 쿠키 등을 조작**하여 보다 상세하게 요청을 구성할 수 있다는 장점이 있다.
+
+사실 `CSRF`는 애초에 클라리언트나 브라우저의 보안 대책만으로는 막을 수 없는 공격이기 때문에, 대부분 서버측에서 방어를 하기 위해 `CSRF 토큰`등의 개념을 통해 반드시 서버측에서 발급한 `CSRF 토큰`을 클라이언트에서 함께 보내주어야만 정상적으로 로직이 실행된다.
+
+따라서 사실 이번 실습 환경에서는 쉬운 취약점이 존재하는 환경이라 `fetch`를 이용해서 공격이 성공했지만, 실제 환경에선 `fetch`하나로는 공격 가능 확률이 0에 수렴할 정도로 훨씬 더 복잡하다는 것을 이해하고 넘어가면 좋을 것 같다.
+
+`CSRF` 공격의 목적과 의도에 대해 다시 상기하는 것이 중요할 것 같다.
 
 ## `XSS`와 `CSRF`의 차이
 

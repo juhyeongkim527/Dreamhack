@@ -208,11 +208,11 @@ p.recvuntil(b'Content: ')  # print_chunk에서 'Content: '는 안받아줬기 �
 libc_base = u64(p.recvn(6).ljust(8, b'\x00')) - libc.symbols['_IO_2_1_stdout_']
 ```
 
-### 참고 (+ 수정 필요)
+### 참고 (더 공부해서 보완)
 
 `free list`의 청크들 끼리 연결 리스트로 연결할 때, 서로 다른 주소의 청크를 연결할 때는 gdb의 `heap` 명령어를 통해 출력되는 청크의 시작 주소대로 `fd`에 연결되지만, 
 
-동일한 청크를 서로 연결할 때는 아래의 이미지와 같이 동일한 청크임에도 불구하고, `+ 0x10`만큼 더해진 청크가 연결된다. 
+동일한 청크를 서로 연결할 때는 아래의 이미지와 같이 동일한 청크임에도 불구하고, `0x10`만큼 더해진 청크가 연결된다. 
 
 ![image](https://github.com/user-attachments/assets/d2af5302-c924-4780-9253-3b0b8f5e8bd0)
 
@@ -230,7 +230,7 @@ libc_base = u64(p.recvn(6).ljust(8, b'\x00')) - libc.symbols['_IO_2_1_stdout_']
 
 그럼 이제 미리 `libc_base`를 통해 `__free_hook`과 `og`를 계산해주고, `__free_hook`의 값을 조작해야 하기 때문에 `allocate(0x40, p64(__free_hook))`으로 `__free_hook`을 `tcache[0x50]`에 추가해준다.
 
-## 수정할 부분 (원가젯)
+## 보완할 부분 (원가젯 조건 확인 추가)
 
 ![image](https://github.com/user-attachments/assets/1a86b142-d49e-453d-b3f1-c06cb5c87426)
 

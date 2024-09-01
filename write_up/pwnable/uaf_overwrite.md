@@ -246,9 +246,13 @@ if (idx < 10 && custom[idx]) {
 
 이번 문제에서 `libc-2.27.so` 라이브러리를 이용해야 하는데, 나는 `vmmap`으로 출력해보면 아래와 같이 `libc.so.6` 버전이 링킹되어 있기 때문에 `libc base`의 가상 주소와 `fd`와 `bk`로 얻은 특정 영역의 주소도 달라지게 된다.
 
-이 부분을 `LD_PRELOAD`와 `LD_LIBRARY_PATH`로 설정해야 한다고 했는데, 이 부분이 힘들어서 일단은 강의자료의 오프셋과 `size`의 입력 값인 `1280`을 써서 할 예정이다. 나중에 수정하자.
+이 부분은 `LD_PRELOAD`와 `LD_LIBRARY_PATH`로 설정해야 한다고 했는데, 이 부분에서 오류가 발생하여서 찾아보니 `glibc`와 `ld(loader)`의 호환 문제를 해결해야 한다.
 
-그리고, Docker 공부도 하자..
+1. `Docker`를 사용하여 주어진 `glibc`와 호환되는 `ld`를 사용 (추천)
+
+2. `patchelf`를 통해 주어진 `glibc` 버전과 호환되는 `ld`를 이용하여 바이너리에 해당하는 `glibc`와 `ld`를 이용할 수 있도록 패치
+
+일단은 강의자료의 오프셋과, `size`의 입력 값인 `1280`을 써서 해보고 나중에 더 공부해본 후 위 방법으로 라이브러리를 링킹해보고 실제로 오프셋을 확인해보자.
 
 ```
 pwndbg> vmmap
@@ -347,7 +351,7 @@ $1 = 0x3ebca0
 
 ![image](https://github.com/user-attachments/assets/9e5bc2f6-8fae-4b8c-aada-15fdf0bfdf69)
 
-근데 여기서 원가젯이 위와 같은데, gdb를 통해 `robot_func`에서 `if (robot->fptr)` 전까지 이동하여 모든 원가젯 조건을 확인해보면 `[rsp + 0x40] == NULL`인 조건만 만족하는데, 실제로는 `[rsp + 0x70] == NULL` 조건의 원가젯으로 익스플로잇이 된다.
+근데 여기서 원가젯 조건이 위와 같은데, gdb를 통해 `robot_func`에서 `if (robot->fptr)` 전까지 이동하여 모든 원가젯 조건을 확인해보면 `[rsp + 0x40] == NULL`인 조건만 만족하는데, 실제로는 `[rsp + 0x70] == NULL` 조건의 원가젯으로 익스플로잇이 된다.
 
 ![image](https://github.com/user-attachments/assets/d01f352c-44cf-455d-8e32-fcfc43d754c1)
 
@@ -357,7 +361,17 @@ $1 = 0x3ebca0
 
 <img width="546" alt="image" src="https://github.com/user-attachments/assets/464bdbca-6f70-4f3c-a240-a1426dfbcc3f">
 
-뭔가 `0x10a41c`에서 두번째 `OR` 조건인 `{[rsp+0x70], [rsp+0x78], [rsp+0x80], [rsp+0x88], ...} is a valid argv`이 만족되서 그런가라는 생각이 드는데, 이 조건은 더 공부해봐야겠다..
+뭔가 `0x10a41c`에서 두번째 `OR` 조건인 `{[rsp+0x70], [rsp+0x78], [rsp+0x80], [rsp+0x88], ...} is a valid argv`이 만족되서 그런가라는 생각이 드는데, 
+
+이 조건은 `execve("/bin/sh", rsp+0x70, environ)`를 참고해서 이해할 수 있다.
+
+`execve` 함수의 원형은 `int execve(const char *filepath, char *const argv[], char *const envpp[]);`로, 2번째 인자로 **문자열 포인터 배열**을 받는다.
+
+여기서 `{[rsp+0x70], [rsp+0x78], [rsp+0x80], [rsp+0x88], ...}`를 필요한 개수의 문자열 포인터를 저장할 배열으로 채우기 때문에, 해당 공간이 사용 가능해야 한다는 조건이다.
+
+만약, 인자로 전달되는 문자열의 개수가 2개라면, `[rsp + 0x70]`, `[rsp + 0x78]` 공간을 사용할 것이다. 
+
+참고로 문자열 포인터로 가리킬 수 있는 문자열의 길이는 `\0`을 만날 때 까지이므로 길이는 제한이 없고, 문자열 포인터가 가리키는 문자열 자체는 `data` 세그먼트에 저장된다.
 
 ### 주의할 점
 
