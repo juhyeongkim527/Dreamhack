@@ -172,7 +172,7 @@ ptmalloc은 이를 최대한 피하기 위해 최대 `64`개의 arena를 생성�
 
 그런데, 생성할 수 있는 갯수가 64개로 제한되어 있으므로 과도한 멀티 쓰레드 환경에서는 결국 병목 현상이 발생한다. 그래서 `glibc 2.26`에서는 `tcache`를 추가적으로 도입하였다.
 
-### 💡레이스 컨디션(Race Condition)
+### 참고 1. 💡레이스 컨디션(Race Condition)
 
 레이스 컨디션은 어떤 `Shared Resource`을 여러 쓰레드나 프로세스에서 접근할 때 발생하는 오동작을 의미한다. 예를 들어, 한 쓰레드가 어떤 사용자의 계정 정보를 참조하고 있는데, 다른 쓰레드가 그 계정 정보를 삭제하면, 참조하고 있던 쓰레드에서는 삭제된 계정 정보를 참조하게 된다.
 
@@ -183,6 +183,68 @@ ptmalloc은 이를 최대한 피하기 위해 최대 `64`개의 arena를 생성�
 그런데 락은 쓰레드를 무제한으로 대기시키기 때문에, 구현을 잘못하거나 쓰레드의 수가 과다하게 많아지면 `병목 현상`을 일으킬 수 있다. 락으로 발생하는 대표적인 문제 중 하나가 여러 쓰레드가 서로 물리고 물려서 어떤 쓰레드도 락을 해제하지 못하는 상황인 `데드락(Deadlock)`이다.
 
 레이스 컨디션을 이용한 공격 기법도 존재하며 이는 나중에 다뤄보도록 하겠다.
+
+### 참고 2. arena의 구현
+
+```
+struct malloc_state
+{
+  /* Serialize access.  */
+  __libc_lock_define (, mutex);
+
+  /* Flags (formerly in max_fast).  */
+  int flags;
+
+  /* Set if the fastbin chunks contain recently inserted free blocks.  */
+  /* Note this is a bool but not all targets support atomics on booleans.  */
+  int have_fastchunks;
+
+  /* Fastbins */
+  mfastbinptr fastbinsY[NFASTBINS];
+
+  /* Base of the topmost chunk -- not otherwise kept in a bin */
+  mchunkptr top;
+
+  /* The remainder from the most recent split of a small request */
+  mchunkptr last_remainder;
+
+  /* Normal bins packed as described above */
+  mchunkptr bins[NBINS * 2 - 2];
+
+  /* Bitmap of bins */
+  unsigned int binmap[BINMAPSIZE];
+
+  /* Linked list */
+  struct malloc_state *next;
+
+  /* Linked list for free arenas.  Access to this field is serialized
+     by free_list_lock in arena.c.  */
+  struct malloc_state *next_free;
+
+  /* Number of threads attached to this arena.  0 if the arena is on
+     the free list.  Access to this field is serialized by
+     free_list_lock in arena.c.  */
+  INTERNAL_SIZE_T attached_threads;
+
+  /* Memory allocated from the system in this arena.  */
+  INTERNAL_SIZE_T system_mem;
+  INTERNAL_SIZE_T max_system_mem;
+};
+```
+
+`arena`는 위와 같은 구조를 가지고 있다.
+
+코드를 살펴보면, `arena`는 고유의 `bins`를 가지는 것을 알 수 있다. 그렇기 때문에 각 `thread`가 고유의 `arena`를 가질 수 있도록 ptmalloc이 64개의 arena를 생성할 수 있다면,
+
+각 스레드는 다른 스레드의 할당자(또는 `bins`)와 완전히 분리되어 있기 때문에 병목현상을 피할 수 있다.
+
+만약 모든 스레드가 오직 하나의 `arena`에만 동시에 접근해야 한다면, 각 스레드마다 `bins`를 가질 수도 없을 것이다. 따라서 서로 겹치지 않는 청크에 접근할 때도 `arean`에 락을 걸어야 해서 병목현상이 크게 발생하는 것이다.
+
+`arena`가 여러개 존재하더라도 한 스레드의 `free()`와 다른 스레드의 `malloc()`으로 등의 이유로, 한 스레드가 가지고 있던 `bins`의 청크를 다른 스레드가 사용하게 되는 상황이 발생하게 되면,
+
+다른 스레드의 `arena`에도 접근해야 하기 때문에 병목 현상이 발생할 수 있지만, 이런 상황은 그렇게 일반적으로 많이 발생하지 않기 때문에 전체적인 병목현상은 매우 줄어들 수 있다.
+
+따라서 모든 스레드가 하나의 `arena`만 사용하여 레이스 컨디션을 발생시키지 않는 상황에서도 락때문에 병목현상이 존재하는 것보다, 각 스레드가 고유한 `arena`를 가지는 것이 병목현상을 줄이는데 매우 효과적이다.
 
 ## 4. tcache
 
