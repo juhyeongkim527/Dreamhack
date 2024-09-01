@@ -141,11 +141,13 @@ int main()
 
 따라서, 이렇게 되면 `tcache_poisoning`을 통해 추가했던 청크를 가져오지 않기 때문에 추가한 `got` 주소를 제대로 가져올 수 없게 된다.
 
-**그래서 `Tcache Poisoning`을 할 때, 항상 `Double Free`를 해줘야 하는 이유이다.** `ex-1.py` 처럼 `Double Free` 이후에 바로 `edit`을 해줘서 `tc_idx`를 계속 `1` 이상으로 유지해줘도 되고,\
+**그래서 `Tcache Poisoning`을 할 때, 항상 `Double Free`를 해줘야 하는 이유이다.** `ex-1.py` 처럼 `Double Free` 이후에 바로 `modify`를 해줘서 `tc_idx`를 계속 `1` 이상으로 유지해줘도 되고,\
 (`Double Free` 이후, 바로 `edit`으로 청크를 추가하지 않고 `create`로 빼주고 청크를 추가하면 `ex-wrong4.py`처럼 `tc_idx`가 마지막에 `create` 전에 `0`이 되어서 실패함)
 
-`ex-2.py`처럼 `create`를 연속 2번 해서 서로 다른 2개의 청크를 만든 후 `delete`를 2번 해줘서 `Double Free` 없이, `tcache`에 청크를 2개 추가하여 `tc_idx = 2`로 만들어준 후 위의 `1. 2. 3.` 과정을 다시 진행해주면 `tc_idx`의 영향을 받지 않고 정상적으로 익스플로잇 할 수 있다.\
-(**이걸로는 부족하기 때문에 아래의 실패 이유 2.도 잘 봐야함** )
+`ex-2.py`처럼 `create`를 연속 2번 해서 서로 다른 2개의 청크를 만든 후, `delete`를 2번 해줘서 `Double Free` 없이 `tcache`에 청크를 2개 추가하여 `tc_idx = 2`로 만들어준 후,
+
+위의 `1. 2. 3.` 과정을 다시 진행해주면 `tc_idx`의 영향을 받지 않고 정상적으로 익스플로잇 할 수 있다. 여기서도 당연히 `tc_idx = 2`에서 `modify`부터 해야 `tc_idx >= 1`이 유지된다.\
+(**이걸로는 부족하기 때문에 아래의 실패 이유 2.도 잘 봐야함**)
 
 `tcache_dup`와 `Tcache Poisoning` 문제에서는 `Ubuntu 18.04, libc-2.27.so` 버전이었지만, 이번 문제에서는 `Ubuntu 19.10, libc-2.30.so`라 `tc_idx`의 도입 여부로 인해 차이가 생기는 듯하다.
 
