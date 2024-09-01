@@ -166,7 +166,19 @@ free()  # (2)
 
 그럼 이제 한번 더 아무 값이나 `allocate`를 해서 `duplicated`된 동일 청크는 이제 사용할 필요가 없기 때문에 빼주고, (아무 값이나 해도 할당 후 데이터를 대입하므로, 할당 직후 데이터를 대입하기 전에 `tcache`의 연결 리스트 헤더가 `stdout` 청크를 가리키게 되어 아무 영향이 없다.)
 
-한번 더, `allocate`를 통해 `stdout` 청크를 빼준 후 `print`를 해주면 `stdout` 청크가 가리키는 `_IO_2_1_stdout_`의 주소를 출력할 수 있을 것이다.\
+### 주의할 점
+
+**근데 여기서, `allocate`를 해서 `duplicated`된 동일한 청크를 빼는 방식은 `tc_idx--;`를 유발하기 때문에 `edit`을 통해 `duplicated`된 동일한 청크를 빼면서 동시에 `stdout` 청크를 추가하는 방식이 더 적절하다.**
+
+해당 문제 환경이 `tc_idx`가 도입되어있지 않았기 때문에, 드림핵 풀이에서는 `tcache`가 변하는 과정을 보여주려고 `allocate`를 쓴 것 같은데, 
+
+`tc_idx`가 도입되었다면 `allocate`할 때, `tc_idx`가 `1`이상을 유지하여 `tcache`에서 청크를 뺴오기 위해 `Double Free` 직후 `allocate`가 아닌 `edit`으로 청크를 뺴야한다.
+
+그래야 `tc_idx`가 줄어들지 않아서 `tc_idx >= 1`이 유지된다. 이 방법은 `tcache_dup2` 문제를 참고하자.
+
+---
+
+그럼 일단 드림핵 풀이 과정대로 해보면, 한번 더 `allocate`를 통해 `stdout` 청크를 빼준 후 `print`를 해주면 `stdout` 청크가 가리키는 `_IO_2_1_stdout_`의 주소를 출력할 수 있을 것이다.\
 (`print` 하기 전에 `recvuntil`로 `"Content: "` 문자열을 미리 빼줘야하는거 주의하자.)
 
 **여기서 매우 중요한게, `allocate`를 통해 `stdout`을 빼낼 때, `stdout`의 데이터에는 `_IO_2_1_stdout_`이 대입되어 있기 때문에 위의 몇가지 경우처럼 아무 값이나 대입하면서 `allocate` 해주면 `_IO_2_1_stdout_`이 변조되어 제대로 된 `libc_base`를 구할 수도 없고 입출력 자체가 망가져 버린다.**
@@ -420,7 +432,8 @@ p.interactive()
 
 이후 방법은 똑같이, 추가한 청크를 `allocate`로 뺀 후에 출력해서 값을 얻거나(`_IO_2_1_stdout_`), 해당 주소에 값을 조작(`og`)하면 된다.
 
-하지만, 이건 `tc_idx`가 도입되지 않은 버전이라서 가능한거고 항상 `tc_idx` 검사가 있다고 생각하고, `Double Free`를 통해 `tc_idx`를 0이상으로 만들어줘야 한다.
+하지만 이건 `tc_idx`가 도입되지 않은 버전이라서 가능한 것이기 때문에, 항상 `tc_idx` 검사가 있다고 생각하고 `Double Free`를 통해 `tc_idx`를 `1` 이상으로 만들어줘야 한다.\
+(`Double Free`에서도 이번 문제에서는 `edit` 순서를 신경써주지 않아서 `tc_idx`가 `0`이 되었지만 실제로는 `edit`을 먼저 해서 `tc_idx >= 1`을 유지해야한다.)
 
 ```
 from pwn import *

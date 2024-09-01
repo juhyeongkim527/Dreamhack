@@ -133,6 +133,8 @@ int main()
 
 따라서, 로컬에서도 이건 당연히 `Double Free` 탐지에 걸리지 않는다. 대신에 `free(NULL)`은 당연히 `tcache`에는 아무 청크도 더해지지 않는다.
 
+그리고, 해당 문제 환경에서는 `tc_idx`가 도입되지 않아서, `edit`으로 `tc_idx`를 조작할 수 없어서 `tc_idx = 0`이 되어도 `tcache`에서 청크를 꺼낼 수 있어서 익스플로잇이 가능하다.
+
 # Exploit
 
 `tcache`의 크기 범위에 해당하는 하나의 청크를 `malloc` 후, `free`를 2번 해주면 알아서 `tcache poisoning`이 가능하다.
