@@ -420,6 +420,8 @@ p.interactive()
 
 이후 방법은 똑같이, 추가한 청크를 `allocate`로 뺀 후에 출력해서 값을 얻거나(`_IO_2_1_stdout_`), 해당 주소에 값을 조작(`og`)하면 된다.
 
+하지만, 이건 `tc_idx`가 도입되지 않은 버전이라서 가능한거고 항상 `tc_idx` 검사가 있다고 생각하고, `Double Free`를 통해 `tc_idx`를 0이상으로 만들어줘야 한다.
+
 ```
 from pwn import *
 

