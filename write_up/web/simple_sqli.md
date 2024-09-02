@@ -84,7 +84,7 @@ def login():
 
 ### POST
 
-`form`을 통해 제출된 `userid`와 `userpassword`를 저장한 후, `query_db` 함수에 `f-string`을 통해 저장한 `userid`와 `userpassword`를 넣어준 후 함수를 호출하여 `res`에 리턴 값을 저장한다.
+`form`을 통해 제출된 `userid`와 `userpassword`를 저장한 후, `query_db` 함수에 `f-string`을 통해 저장한 `userid`와 `userpassword`를 넣어준 후 함수를 호출하여 `res`에 리턴 값을 저장한다.
 
 `query_db` 함수는 아래와 같다.
 
