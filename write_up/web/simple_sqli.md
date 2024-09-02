@@ -274,6 +274,20 @@ if __name__ == "__main__":
     solver.solve()
 ```
 
+과정을 한번 살펴보면, 먼저 `_find_password_length`에서 `query_tmpl = f"((SELECT LENGTH(userpassword) WHERE userid=\"{user}\")<{{val}})"`를 통해 쿼리문을 생성하낟.
+
+해당 쿼리문은 `userpassword`의 길이가 `val`보다 작은 경우 `True`를 리턴하는 쿼리문이다. 예를 들어 `user`가 `"admin"`이고, `val`이 `10`일 때 아래와 같은 쿼리문이 실행된다.
+
+- `((SELECT LENGTH(userpassword) WHERE userid="admin") < 10)`
+
+이 쿼리문을 `_sqli_lt_binsearch` 함수에 인자로 전달하면, 해당 함수에서 이진 탐색을 하게 된다.
+
+이진 탐색 내에서, `_sqli` 함수를 호출하여 `resp = self._login(f"\" or {query}-- ", "hi")`를 통해 앞에서 쓴 쿼리문을 `query`에 입력하여 전달해주면 해당 함수가 쿼리문이 `True`를 리턴할 때 로그인이 가능하다.
+
+따라서, `if "hello" in self._sqli(query).text:` 조건으로 해당 함수의 응답문에서 `"hello"` 라는 텍스트가 존재하면 로그인에 성공한 것이기 때문에,
+
+`high = mid`로 업데이트 하여 `val`의 값을 조금 더 키워보며 이진 탐색을 진행하여 비밀번호 길이를 찾게 된다.
+
 코드의 실행 결과는 아래와 같고, `app.py` 소스코드에서도 16바이트 랜덤한 문자열을 만든 후 `hex`로 출력했기 때문에, 비밀번호의 길이가 총 32자리(32바이트)임을 알 수 있다.
 
 <img width="730" alt="image" src="https://github.com/user-attachments/assets/4574a70f-c3a3-4319-b485-7c25b0fe89ac">
@@ -349,6 +363,18 @@ if __name__ == "__main__":
     solver = Solver(port)
     solver.solve()
 ```
+
+비밀번호를 찾는 코드는 이진 탐색으로 찾은 비밀번호의 길이를 인자로 전달한 후, `_find_password` 함수에서 `substr`와 이진 탐색을 사용하여 비밀번호를 한 자리씩 찾아간다.
+
+`query_tmpl = f'((SELECT SUBSTR(userpassword,{idx},1) WHERE userid="{user}") < CHAR({{val}}))'`를 통해 `userpassword`에서 지정해준 `substr`이 `val`의 아스키 문자보다 작을 때 `TRUE`를 리턴하는 쿼리문을 발생시킨다.
+
+예를 들어, 세 번째 문자에 대해 `user`가 `"admin"`이고 `val`이 `'a'`를 나타내는 `0x61`이면 아래와 같은 쿼리문을 보낸다.
+
+- `(SELECT SUBSTR(userpassword,3,1) WHERE userid="admin") < CHAR(0x61)`
+
+참고로, `{{val}}`으로 두번 감싸져있는 이유는 나중에 포맷 스트링에서 `val`을 정해주지 않고 먼저 전달하여 `{val}`으로 만들고, 나중에 이진 탐색에서 `format()` 함수로 한번 더 값을 대입해주기 위해서이다.
+
+이진 탐색의 과정은 비밀 번호의 길이를 찾는 과정과 동일하기 때문에 같은 함수를 사용한다.
 
 코드의 실행 결과는 아래와 같고, 찾은 비밀번호를 통해 로그인하면 로그인에 성공한다. `app.py` 소스코드에서도 16바이트 랜덤한 문자열을 만든 후 `hex`로 출력했기 때문에, 총 32바이트 길이의 비밀번호가 나온다.
 
