@@ -98,7 +98,7 @@ const server = app.listen(3000, function(){
 });
 ```
 
-오브젝트 타입의 값을 입력할 수 있다면 입력 값에 연산자를 사용할 수 있다고 하였다.
+오브젝트 타입의 값을 입력할 수 있다면 입력 값에 연산자를 사용할 수 있다고 하였다.
 
 이전에 배웠던 `$ne` 연산자는 **not equal**의 약자로, 입력한 데이터와 일치하지 않는 데이터를 반환한다.
 
@@ -314,7 +314,7 @@ const server = app.listen(80, function(){
 });
 ```
 
-Blind NoSQL Injection의 실습 모듈도, Query Result를 출력해주지 않는 것 빼고는 NoSQL Injection 실습 모듈과 동일하다.
+Blind NoSQL Injection의 실습 모듈도, Query Result를 출력해주지 않는 것 빼고는 NoSQL Injection 실습 모듈과 동일하다.
 
 Blind NoSQL Injection 공격을 위해서는, 비밀번호의 길이를 먼저 구한 후 한 글자씩 비밀번호를 구해나가야한다.
 
