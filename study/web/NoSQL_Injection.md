@@ -228,3 +228,127 @@ error: {
 위의 코드에서 `this.uid=='guest'&&this.upw.substring(0,1)=='g'&&asdf&&'1'&&this.upw=='${upw}'`이라는 javascript 표현식이 실행되도록 쿼리문이 전달된다고 가정해보자.
 
 그럼, `this.uid=='guest'&&this.upw.substring(0,1)=='g'`까지가 `True`일 때만, **Short-circuit evaluation**에 의해 `asd`라는 잘못된 문법을 가지는 코드가 호출되기 때문에 `error` 발생을 통해 공격이 성공했는지 확인할 수 있다.
+
+참고로 역시 `&&'1`도 쿼리문을 끝내기 위한 코드이며, 표현식에서 `&&this.upw=='${upw}'`가 존재하기 때문에 `upw`가 일치해야 `True`가 리턴되기 때문에 Error based Injection을 통해서만 공격이 가능하다.
+
+# [실습](https://learn.dreamhack.io/labs/48ceb260-64c3-47d9-9ef3-601fa9edc508)
+
+## NoSQL Injection
+
+```
+const express = require('express');
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded( {extended : false } ));
+const mongoose = require('mongoose');
+const db = mongoose.connection;
+mongoose.connect('mongodb://localhost:27017/', { useNewUrlParser: true, useUnifiedTopology: true });
+
+app.post('/query', function(req,res) {
+    db.collection('user').find({
+        'uid': req.body.uid,
+        'upw': req.body.upw
+    }).toArray(function(err, result) {
+        if (err) throw err;
+        res.send(result);
+  });
+});
+
+const server = app.listen(80, function(){
+    console.log('app.listen');
+});
+```
+
+위 코드는 아래의 실습 모듈을 구성하는 코드이다.
+
+<img width="792" alt="image" src="https://github.com/user-attachments/assets/c8e3e123-3704-4fea-9390-c6e4c4a43708">
+
+해당 코드 내에서는 확인할 수 없긴 하지만, 실습 모듈에서는 편의를 위해 `POST` 데이터에 들어가는 필드명을 변경할 수 있도록 조정되어있다.
+
+목표는 데이터베이스에 존재하는 `"admin"` 계정의 비밀번호를 출력하는 것이다.
+
+`POST` 데이터에 들어가는 필드명을 변경할 수 있기 때문에, `uid`, `upw` 필드 명을 `uid[$ne]` 또는 `upw[$ne]` 처럼 바꿀 수 있다.
+
+따라서 `"admin"` 계정으로 로그인하기 위해서는 `uid`, `admin`, `upw[$ne]`, ``를 입력해주면 아래와 같이 비밀번호를 얻을 수 있다.
+
+<img width="775" alt="image" src="https://github.com/user-attachments/assets/b9379997-1454-44f4-b56c-7ce9e06b7095">
+
+참고로, `uid`, `admin` `uid[$where]`, `return 1 == 1`으로 입력했을 때 안되는 이유는, `upw[$ne]`는 `upw : {"$ne" : ~}`로 입력되어서 형식에 맞지만, `upw : {$"where" : ~}는 `""` 때문에 형식이 맞지 않기 때문이다.
+
+`$where`은 앞에서 얘기했듯이 필드에 쓸 수 없다. 그리고 필드에 `$where`만 입력했을 때도 실습 모듈 내부에서 변환이 이루어져서 `$where`만 단독으로 필드에 입력되지 않는다.
+
+<img width="778" alt="image" src="https://github.com/user-attachments/assets/c378e37f-0e53-46b6-9c36-0f08a690364a">
+
+그리고 모든 계정의 비밀번호를 출력하려면, `uid[$ne]`, ``, `upw[$ne]`, ``를 입력해주면 된다.
+
+<img width="784" alt="image" src="https://github.com/user-attachments/assets/3eb40763-dde9-4891-91a3-fd2f0fb5f627">
+
+## Blind SQL Injection
+
+```
+const express = require('express');
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded( {extended : false } ));
+const mongoose = require('mongoose');
+const db = mongoose.connection;
+mongoose.connect('mongodb://localhost:27017/', { useNewUrlParser: true, useUnifiedTopology: true });
+
+app.get('/query', function(req,res) {
+    db.collection('user').findOne({
+        'uid': req.body.uid,
+        'upw': req.body.upw
+    }, function(err, result){
+        if (err) throw err;
+        console.log(result);
+        if(result){
+            res.send(result['uid']);
+        }else{
+            res.send('undefined');
+        }
+    })
+});
+
+const server = app.listen(80, function(){
+    console.log('app.listen');
+});
+```
+
+Blind NoSQL Injection의 실습 모듈도, Query Result를 출력해주지 않는 것 빼고는 NoSQL Injection 실습 모듈과 동일하다.
+
+Blind NoSQL Injection 공격을 위해서는, 비밀번호의 길이를 먼저 구한 후 한 글자씩 비밀번호를 구해나가야한다.
+
+### 1. 비밀번호 길이 구하기
+
+관리자 계정의 비밀번호 길이는 **정규식**을 사용하여 쉽게 알아낼 수 있다.
+
+정규식 `.{5}`는 **"임의의 문자 5개"** 를 의미한다.
+
+왜나하면 먼저 `.`('Dot')는 정규 표현식에서 **줄바꿈을 제외한 임의의 한 문자**를 뜻하고, `{n}`은 앞에 나온 정규 표현식(패턴)을 `n`번 반복한다는 뜻이기 때문이다.
+
+아래와 같이 `uid`, `admin`, `upw[$regex]`, `.{5}`를 입력해줬을 때, `uid`가 `"admin"`이고, `upw`가 **임의의 문자 5개**인 행이 존재한다면 리턴하는데, 아래와 같이 로그인에 성공한 것을 통해 해당 행이 존재하고, 비밀번호 길이가 5글자임을 알 수 있다.
+
+<img width="780" alt="image" src="https://github.com/user-attachments/assets/8cb83acb-2f42-4fa1-997c-950c54924ebf">
+
+`.{5}` 대신 `.{6}`을 입력해주면, `uid`가 `"admin"`이고 `upw`가 임의의 문자 6개인 행이 존재하지 않기 때문에 리턴값이 존재하지 않아서 아래와 같이 로그인에 실패함을 알 수 있다.
+
+<img width="780" alt="image" src="https://github.com/user-attachments/assets/0ed58441-0f12-4b88-9882-9d96e010b721">
+
+
+## 2. 비밀번호 구하기
+
+여전히 필드명에 `$where`을 단독으로 대입할 수 없기 때문에, `substring`, Time based Injection, Error based Injection 대신 `$regex`를 사용하여 비밀번호를 구해야 한다.
+
+정규 표현식에서 `^`는 문자열의 시작을 의미한다. 예를 들어, `^a`는 `"a"`로 시작하는 모든 문자열에 매칭되고, `^ab`는 `"ab"`로 시작하는 모든 문자열에 매칭된다.
+
+따라서 첫번째 자리부터 `^a`를 통해 계속 아스키 문자를 키워가면서 5자리까지 구해나가면 된다.
+
+해당 실습 모듈에서는 쉬운 난이도로 `"apple"`이 비밀번호이기 때문에 `^a`, `^ap`, `^app`를 통해 쉽게 유추할 수 있지만, 실제로 출력 가능한 아스키 문자의 범위는 `94`개이므로 원래는 자동화 스크립트를 작성하는 것이 필수적일 것이다.
+
+<img width="777" alt="image" src="https://github.com/user-attachments/assets/b6af014e-4146-4f09-8ad0-3aecf48db086">
+
+<img width="765" alt="image" src="https://github.com/user-attachments/assets/1b9d82e3-dbe0-4cba-a124-857dff003729">
+
+<img width="774" alt="image" src="https://github.com/user-attachments/assets/bb689249-9d58-44c0-9482-bd6186184c4b">
+
+<img width="775" alt="image" src="https://github.com/user-attachments/assets/f57ffd86-4eae-4cd4-b9ca-abdde0f37dfd">
