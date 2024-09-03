@@ -207,7 +207,8 @@ db.user.find({$where: `this.uid=='${req.query.uid}'&&this.upw=='${req.query.upw}
 
 하지만 `sleep` 함수의 존재 때문에, `this.uid == 'guest' && this.upw.substring(0,1) == 'g'` 까지가 `True`일 때만, **Short-circuit evaluation**에 의해 `sleep(5000)`이 호출되기 때문에 시간 지연으로 공격이 성공했는지 확인할 수 있다.
 
-참고로, `&&'1`은 쿼리문을 끝내기 위한 코드이며 `db.user.find({$where: `this.uid=='${req.query.uid}'&&this.upw=='${req.query.upw}'`});` 쿼리문에서 `upw`가 일치해야 `True`가 리턴되기 때문에 `sleep` 함수를 통해서만 공격이 가능하다.
+참고로, `&&'1`은 쿼리문을 끝내기 위한 코드이며,\ 
+`db.user.find({$where: "this.uid=='${req.query.uid}'&&this.upw=='${req.query.upw}'"});` 쿼리문에서 `upw`가 일치해야 `True`가 리턴되기 때문에 `sleep` 함수를 통해서만 공격이 가능하다.
 
 ### 4. Error based Injection
 
