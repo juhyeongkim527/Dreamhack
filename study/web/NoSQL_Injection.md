@@ -128,7 +128,7 @@ MongoDB에서는 `$regex`, `$where` 연산자를 사용하여 Blind NoSQL Inject
 | `$expr`  | 쿼리 언어 내에서 **집계 식**을 사용할 수 있습니다.             |
 | `$regex` | 지정된 **정규식**과 일치하는 문서를 선택합니다.                |
 | `$text`  | 지정된 **텍스트를 검색**합니다.                                |
-| `$where` | **JavaScript 표현**식을 만족하는 문서를 선택합니다.             |
+| `$where` | **JavaScript 표현식**을 만족하는 문서를 선택합니다.             |
 
 ## `$regex`
 
@@ -145,7 +145,7 @@ MongoDB에서는 `$regex`, `$where` 연산자를 사용하여 Blind NoSQL Inject
 
 ## `$where`
 
-`$where` 뒤의 쿼리문이 `True`를 리턴하는 `Document`를 찾는다고 생각하면 된다.
+**`javascript` 표현식과 일치하는 데이터를 조회한다.** `$where` 뒤의 표현식이 `True`가 되도록 하는 `Document`를 찾는다고 생각하면 된다.
 
 ### 1. 표현식
 
