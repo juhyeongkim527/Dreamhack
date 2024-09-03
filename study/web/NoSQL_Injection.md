@@ -166,7 +166,7 @@ error: {
 
 ### 2. `substring`
 
-해당 연산자로 `javascript` 표현식을 입력하면, 앞에서 배웠던 Blind SQL Injection에서 `substr`을 사용한 것과 같이 각 자리의 데이터를 알아낼 수 있따.
+해당 연산자로 `javascript` 표현식을 입력하면, 앞에서 배웠던 Blind SQL Injection에서 `substr`을 사용한 것과 같이 각 자리의 데이터를 알아낼 수 있다.
 
 아래 쿼리는 `upw`의 첫 글자를 비교해 데이터를 알아내는 쿼리이다. 참고로 `substr`은 `1-index` 였지만, `substring`인 `0-index`이다.
 
