@@ -119,7 +119,7 @@ const uid = req.query.uid;
 const upw = req.query.upw;
 ```
 
-이후 아래에서 `user` 컬렉션을 조회하여 방금 저장해준 `uid`, `upw` 값과 일치하는 Document를 찾아서 `result`에 저장한다.
+이후 아래에서 `user` 컬렉션을 조회하여 방금 저장해준 `uid`, `upw` 값과 일치하는 Document를 찾아서 `result`에 저장한다.
 
 Document를 제대로 찾아서 `result`에 대입한 경우, `uid` 필드에 저장된 값을 출력하고 Document를 찾지 못한 경우 `"err"`나 `"undefined"`를 출력한다.
 
@@ -221,7 +221,7 @@ while True:
 print(f'Password length is {pw_len}')
 ```
 
-일단 비밀번호의 길이를 저장할 `pw_len` 변수를 선언해준 후, **정규 표현식(`$regex`)**을 통해 admin 계정의 비밀번호의 길이를 구하도록 `GET` 요청을 보내는 쿼리문을 작성해준다.
+일단 비밀번호의 길이를 저장할 `pw_len` 변수를 선언해준 후, **정규 표현식(`$regex`)** 을 통해 admin 계정의 비밀번호의 길이를 구하도록 `GET` 요청을 보내는 쿼리문을 작성해준다.
 
 참고로, 여기서 `pw_len`은 `DH{}`에서 괄호 안에 존재하는 플래그의 길이이다.
 
@@ -235,7 +235,7 @@ print(f'Password length is {pw_len}')
 
 URL을 통해서 실제로 전달해야할 값이 예시로 `pw_len = 10`일 때, **`D.{.{10}}`** 문자열이 전달되야 한다. 그렇기 때문에 `f-string`에서 `{`이나 `}`을 출력하기 위해서는 `{`나 `}`를 2번 겹쳐서 써주어야 해서 위와 같은 인자가 전달되게 된다.
 
-만약 `pw_len`을 대입하여 `f-string`을 전달했을 때, `GET` 요청의 응답이 저장된 `response`객체의 **Response Body**에 해당하는 `response.text`값이 `SUCCESS`와 같다면 로그인에 성공한 것이다.
+만약 `pw_len`을 대입하여 `f-string`을 전달했을 때, `GET` 요청의 응답이 저장된 `response` 객체의 **Response Body**에 해당하는 `response.text`값이 `SUCCESS`와 같다면 로그인에 성공한 것이다.
 
 따라서 이때의 `pw_len`이 실제 비밀번호의 길이이기 때문에, 반복문을 종료하고 `pw_len`을 출력하면 비밀번호의 길이를 구할 수 있다.
 
