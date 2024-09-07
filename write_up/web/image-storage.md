@@ -48,7 +48,7 @@ php로 작성된 파일 저장 서비스입니다.
 
 인덱스 페이지는 위 코드를 통해 구현되어 있고, "Upload and Share Image!"를 출력한다.
 
-고정되는 네비게이션 바에서는 `List`, `Upload` 버튼을 통해 각각 `/list.php`와 `/upload.php` 로 이동하는 메뉴를 출력한다.
+고정되는 네비게이션 바에서는 `List`, `Upload` 버튼을 통해 각각 `/list.php`와 `/upload.php` 로 이동하는 메뉴를 출력한다.
 
 ## upload.php
 
@@ -172,9 +172,13 @@ Path Traversal 취약점을 통해서 원하는 위치에 임의 파일을 업�
 
 그럼 이제, `cat /flag.txt`를 입력하면 아래와 같이 플래그를 획득할 수 있다.
 
+<img width="659" alt="image" src="https://github.com/user-attachments/assets/819896d2-6887-4b76-9201-2351492fc1fa">
+
 이번 문제에서는 `flag.txt`의 경로가 미리 주어져있어서 한번에 찾을 수 있지만, 아닌 경우에는 `ls [경로]` 또는 `ls [옵션]`을 통해 `flag.txt`의 위치를 먼저 찾아야 할 것이다.
 
-<img width="659" alt="image" src="https://github.com/user-attachments/assets/819896d2-6887-4b76-9201-2351492fc1fa">
+실제로 찾아보면, 이번 문제 환경에서는 `ls ../../../../` 를 입력해줬을 때, 아래와 같이 `flag.txt`가 존재하는 것을 확인할 수 있었다.
+
+<img width="674" alt="image" src="https://github.com/user-attachments/assets/bfdab24b-3a37-4e6c-9d1b-22deaca7dee7">
 
 참고로, 파일 이름을 `ex.php`와 같이 `.php` 확장자가 아닌 `.html` 확장자로 쓰면, HTML 스크립트로 해석되어 `form`은 나타나지만, `php` 코드는 해석되지 않아서 셸이 실행되지 않는다.
 
