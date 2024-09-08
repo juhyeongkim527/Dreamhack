@@ -136,6 +136,21 @@ def upload_memo():
     return render_template('upload.html')
 ```
 
+<img width="998" alt="image" src="https://github.com/user-attachments/assets/5ed90f30-619a-4b93-be65-e7a1f2cfdbc3">
+
+`/upload` 엔드포인트 코드를 잘 보면, `GET` 요청이 온 경우는 `upload.html` 파일을 렌더링해주고,
+
+`POST` 요청이 온 경우 `filename`과 `content`를 `form`을 통해 전달받는다.
+
+그런데 여기서, `filename`에 `..`이 존재한다면, 파일을 업로드하지 않고, `"bad characters,,"` 문자열을 전달하고 끝낸다.
+
+이를 통해 `..`와 같이 상위 디렉토리로 이동하는 상대 경로 문자열을 필터링하는 것을 알 수 있고, **Path Traversal** 취약점 공격은 어려운 것을 알 수 있다.
+
+만약 필터링에 걸리지 않는다면, `wb`인 **바이너리 쓰기** 모드로 `{UPLOAD_DIR}/{filename}` 파일을 열어서 `content`의 내용을 파일에 써준다.
+
+참고로, `wb`는 파일이 존재한다면 덮어쓰고, 존재하지 않으면 생성하여 쓰는 모드이며, `with open() as f`는 파일을 열고, `f`를 통해 파일에 접근한 후 자동으로 `close`를 해주는 구문이다.
+
+끝난 후에는 `return redirect('/')`로 인덱스 페이지로 이동해준다.
 
 ## 엔드포인트 : `/read`
 
@@ -159,3 +174,82 @@ def read_memo():
                            content=data.decode('utf-8'),
                            error=error)
 ```
+
+해당 엔드포인트는 인덱스 페이지에서는 보이지 않는 엔드포인트로, URL을 통해서 접근가능하다.
+
+`GET` 요청이 왔을 때, `name` 파라미터에 저장된 값을 가져와서 `filename`에 저장한 후, `/upload` 엔드포인트에서와 비슷한 방법으로 파일을 열고 `data` 변수에 파일의 모든 내용을 읽어서 저장한다.
+
+만약 `open` 과정에서 파일이 존재하지 않는다면, `error`를 설정해준다.
+
+그리고 `read.html` 페이지를 랜더링하며, `filename`, `content`, `error`를 인자로 전달해준다.
+
+```
+{% if error %}
+<h1>{{ filename }} does not exist. :(</h1>
+{% else %}
+<h1>{{ filename }} Memo</h1><br/>
+  <div class="row">
+    <div class="col-md-12 form-group">
+      <label for="FileData">Content</label>
+      <textarea id="FileData" class="form-control" rows="5" name="content" readonly>{{ content }}</textarea>
+    </div>
+  </div>
+```
+
+위 코드는 `read.html` 파일이다.
+
+만약 `error`가 존재한다면 에러메시지를 출력해주고, 존재하지 않는다면 `content` 내용을 출력해준다.
+
+해당 엔드포인트의 취약점을 생각해보면, `/upload` 엔드포인트와 달리 `name` 파라미터에 `..`와 같은 상대 경로 이동 문자열이 존재하는지 검사하지 않는다.
+
+따라서, 실제 어떤 파일의 내용을 읽을지 정해주는 `filename`에 저장될 `name` 파라미터에 `..`와 같은 상대 경로 이동 문자열을 통해 **Path Traversal** 취약점 공격이 가능하다.
+
+# Exploit
+
+그럼 `/read` 엔드포인트의 **Path Traversal** 취약점을 통해, `flag.py`의 내용을 읽어보자.
+
+플래그가 저장된 파일의 이름은 알고 있지만, 해당 파일이 어느 디렉토리에 존재하는지는 알려져있지 않다.
+
+따라서, 상대경로를 탐색하며 하나씩 차례대로 확인해봤을 때, `/read?name=../flag.py`을 통해, `../flag.py`에서 해당 파일을 찾을 수 있었다.
+
+### 1. `/read?name=flag.py`
+
+<img width="482" alt="image" src="https://github.com/user-attachments/assets/c47a0f9f-974a-44b6-ade1-c63cfb5ef18f">
+
+### 2. `/read~name=../flag.py`
+
+<img width="998" alt="image" src="https://github.com/user-attachments/assets/79b3ee71-2bbf-4a06-accc-fa20b817491c">
+
+### 참고
+
+이번 문제에서 업로드하는 파일에 대한 검증이 존재하지 않아서, 웹 셸 업로드 공격이 가능한게 아닌가라는 생각으로 웹 셸을 업로드해보니 코드 실행이 불가능했다.
+
+<img width="1023" alt="image" src="https://github.com/user-attachments/assets/0cf4791d-50bb-4cf4-a2e4-a3f3c21ad31e">
+
+`image-storage` 워게임에서는 `<li><a href='{$directory}{$value}'>".$value."</a></li><br/>`를 통해, 업로드한 웹 셸에 직접 접근하지만,
+
+이번 문제에서는 `f.read()`를 통해서 업로드한 웹 셸에 직접 접근하는게 아니라, 파일에 적힌 데이터만 읽어서 출력하기 때문인 것 같다.
+
+# 마치며
+
+**Path Traversal** 취약점을 이용한, **File Download Vulnerability** 공격을 통해 문제를 해결하였다.
+
+이러한 공격으로부터 서비스를 보호하려면, `/upload` 엔드포인트에서처럼 `..`와 같은 디렉토리를 이동하는 문자열을 필터링하여 Path Traversal 취약점을 막아야 한다.
+
+이번 문제에서 처럼, 이때 특정 페이지(`/read`) 또는 특정 기능에 대해 충분히 검사하지 않거나, 페이지 간 검사 수준이 다르면 공격자는 해당 취약점을 악용하여 파일 다운로드 공격을 시도할 수 있다.
+
+따라서 모든 페이지에서 일관되게 상위 디렉토리로 이동 시도를 차단해야한다. 
+
+`".."` 외에도 파일 시스템에 대해 부적절한 접근을 시도할 수 있는 문자열은 아래와 같다.
+
+| 문자열 | 역할 및 설명 |
+|--------|-------------|
+| `/`    | 파일 경로에서 디렉터리 구분자로 사용됩니다. |
+| `\`    | Windows 운영 체제에서 파일 경로에서 디렉터리 구분자로 사용됩니다. |
+| `:`    | Windows 운영 체제에서 드라이브와 파일 경로를 구분하는데 사용됩니다. |
+| `~`    | 홈 디렉터리를 나타내는데 사용됩니다. |
+
+
+또 다른 파일 다운로드 공격으로부터 서비스를 보호하는 방법은, 특정 파일 유형(이미지, 문서, 텍스트 등)만 허용하도록 확장자를 검증하는 것이다. (웹 셀 공격을 막기 위해)
+
+확장자에 대한 **화이트리스트(허용할 항목들의 배열)** 를 만들어 검사하고, 화이트리스트에 없는 확장자를 가진 파일(**블랙리스트로 정하기도 함**)을 차단하면 파일 다운로드 공격을 예방할 수 있다.
