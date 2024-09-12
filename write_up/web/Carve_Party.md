@@ -120,7 +120,7 @@ $(function () {
 
 `$('#jack-target').click(function () {});` `#jack-target` 요소에 `click` 이벤트가 발생했을 때의 핸들러 코드를 등록하는 부분이라고 한다.
 
-그래서 시험삼아 아래의 코드를 `10000`번 수행하도록 `console`에 반복문을 통해 입력해주었는데, 한번 더 클릭을 하면 똑같이 플래그가 출력되었다.
+그래서 시험삼아 아래의 코드를 `10000`번 수행하도록 `console`에 반복문을 통해 입력해주었는데, 이후 호박을 한번 클릭해주면 `counter` 값이 `10000`을 넘어가면서 위와 똑같이 정상적인 플래그가 출력되었다.
 
 <img width="1231" alt="image" src="https://github.com/user-attachments/assets/e9800e73-d8a9-4a0e-9360-0a111ab5a045">
 
