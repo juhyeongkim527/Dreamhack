@@ -206,6 +206,8 @@ threading._start_new_thread(run_local_server, ()) # 다른 쓰레드로 `local_s
 
 따라서, 웹 서버의 권한으로 해당 로컬호스트에 접근하여 `flag.txt` 파일을 가져오기 위해서는 **SSRF** 취약점을 통해 접근해야 한다.
 
+**그러기 위해서는 웹 서버의 권한으로 HTTP 요청을 전달하는 있는 유일한 엔드포인트인 `/img_viewer` 를 통해, `url`에 `local_server`의 URL을 전달해서 웹 리소스를 리턴받은 후 `img_viewer.html` 파일에 인자로 전달하는값을 확인해야한다.**
+
 그런데 `/img_viewer` 엔드포인트에서는 로컬호스트에 대해 필터링을 하기 때문에, 웹 서버의 포트 번호를 알아내더라도 해당 엔드포인트에서 `form`의 입력을 통해 로컬 호스트에 접근하는 것이 힘들어 보이기도 한다.
 
 이를 우회할 수 있는 방법에 대해서 생각해보자.
@@ -272,7 +274,7 @@ local_port = random.randint(1500, 1800)
 
 `8000`번에서는 `flag.txt` 파일을 반환하도록 설정해주지 않았기 때문에, 해당 웹 서버를 통해 `flag.txt` 파일을 반환받아야 하므로 해당 웹 서버의 포트 번호를 찾아야한다.
 
-이는 아래와 같이 파이썬으로 `requests` 모듈을 활용하여 스크립트를 작성할 수 있다.
+랜덤으로 설정해준 포트 번호는, 아래와 같이 파이썬의 `requests` 모듈을 활용한 스크립트를 통해 알아낼 수 있다.
 
 ```
 import requests
@@ -307,8 +309,57 @@ if __name__ == "__main__":
     internal_port = find_port()
 ```
 
+먼저, `NOTFOUND_IMG = "iVBORw0KG"` 를 통해 `"iVBORw0KG"` 라는 값을 저장해주는데, 이 값의 정체가 무엇인지 살펴보자.
 
+만약 `url`에 열려있지 않은 포트 번호를 전달하면, `try..except` 구문에서 exception이 발생하여 `error.png`이 렌더링된다.
 
+`error.png` 파일을 base64로 인코딩한 후 utf8로 디코딩하면, 아래와 같이 `<img src>`로 전달되는 `data` 값에 `"iVBORw0KG"`가 포함되게 된다.
 
+<img width="684" alt="image" src="https://github.com/user-attachments/assets/0732bcd4-0153-43aa-8020-db7e13f519db">
 
+따라서, 1500 ~ 1800번 중 열리지 않은 로컬호스트의 주소를 `/img_viewer` 엔드포인트에 `POST` 메소드로 전달하면, 응답값의 `text`에 `"iVBORw0KG"`가 포함되기 때문에 이를 통해 적절한 포트를 찾을 수 있다.
+
+참고로, `local_server`에 `/` 엔드포인트를 전달하면, 해당 경로에 존재하는 파일들을 아래와 같은 `HTML` 형식으로 변환하여 전달해준다. (`<img src>`에 전달된 데이터를 base64 디코딩한 값이다.)
+
+```
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Directory listing for /</title>
+</head>
+
+<body>
+  <h1>Directory listing for /</h1>
+  <hr>
+  <ul>
+    <li><a href="app.py">app.py</a></li>
+    <li><a href="error.png">error.png</a></li>
+    <li><a href="flag.txt">flag.txt</a></li>
+    <li><a href="requirements.txt">requirements.txt</a></li>
+    <li><a href="static/">static/</a></li>
+    <li><a href="templates/">templates/</a></li>
+  </ul>
+  <hr>
+</body>
+
+</html>
+```
+
+그럼 해당 스크립트의 전체 과정을 다시 설명하면 아래와 같다.
+
+1. `main`에서 워게임 서버의 포트 번호를 커맨드라인을 통해 `chall_port`로 받아준 후, `chall_url`을 `/img_viewer` 엔드포인트로 설정
+
+2. `find_port` 함수를 호출하여, 1500 ~ 1800 번 포트에 대해 반복문을 돌며, `/img_viewer`에 전달할 `url`을 `f"http://Localhost:{port}"`로 설정 (여기서 로컬호스트의 alias인 `Localhost`로 전달하여 필터링 우회)
+
+3. `send_img` 함수에 해당 `url`을 인자로 전달하여, `NOTFOUND_IMG`가 `send_img`의 반환값에 존재하지 않는다면, 설정한 포트 번호를 찾은 것이므로 `print` 후 `break
+
+4. `send_img` 함수에서는, 인자로 전달받은 `url`을 `data`로 설정하여, `/img_viewer` 엔드포인트에 `POST` 요청을 보낸 후 `response`에 `POST` 요청의 반환값을 저장
+
+해당 과정을 수행하는 스크립트를 실행하면 아래와 같이 `1675` 포트 번호를 찾을 수 있다.
+
+<img width="1007" alt="image" src="https://github.com/user-attachments/assets/550f686b-5e00-4ebd-b6d1-12649e860980">
+
+# Exploit
 
