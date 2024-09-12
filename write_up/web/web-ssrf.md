@@ -363,3 +363,34 @@ if __name__ == "__main__":
 
 # Exploit
 
+그럼 이제 앞에서 찾은 포트 번호인 1675번과, `localhost`의 alias인 `Localhost`를 통해 `/img_viewer` 엔드포인트의 `url`에 아래의 값을 전달하면 된다.
+
+```
+http://Localhost:1675/flag.txt
+```
+
+참고로, 바로 현재 디렉토리에 `flag.txt`가 위치하는 것은, 위에서 `/` 엔드포인트의 파일 리스트에 `flag.txt`가 존재하는 것을 통해서 확인할 수도 있고,
+
+문제 설명에서 플래그는 `/app/flag.txt`에 존재한다는 단서를 통해서 알아낼 수도 있다.
+
+왜냐하면, 웹 서버를 실행하는 `app.py` 함수는 `/app` 디렉토리에서 실행되기 때문에 `app.py`의 정적 리소스 반환 서버인 `local_server`의 인덱스 경로인 `/`는 `/app`이 되기 때문이다.
+
+따라서, 폼으로 전달해주면 `flag.txt` 파일의 내용이 base64 인코딩 -> utf8 디코딩 과정을 겪은 후 `<img src>`의 속성값에 전달되기 때문에,
+
+이를 다시 base64 디코딩해주면 아래와 같이 플래그를 획득할 수 있다.
+
+참고로, utf8 디코딩은 base64를 통해서 인코딩한 값을 유니코드로 디코딩하는 것이기 때문에 상관하지 않고 바로 base64로 디코딩해주면 원래의 값을 알아낼 수 있다.
+
+<img width="426" alt="image" src="https://github.com/user-attachments/assets/23ccb229-f8f5-438c-877f-7a921a839a07">
+
+<img width="634" alt="image" src="https://github.com/user-attachments/assets/5d051e36-1250-471e-ad41-3bccf6eb1d4a">
+
+# 마치며
+
+이번 문제에서는 **SSRF 공격**을 통해 플래그를 회득할 수 있었다.
+
+문제에서는 URL 필터링으로 SSRF를 방어하려 했지만, 필터링에서 여러 요소들을 고려하지 못하여 이를 쉽게 우회할 수 있었다. 
+
+해결 방법으로는 **Allow List**를 통해 더욱 강한 URL 필터링을 적용하거나, 
+
+HTTP 요청을 하는 애플리케이션(`/image viewer`)을 내부망과 분리하여, 웹 서버의 권한으로 HTTP 요청을 할 수 없도록 하여 내부망의 보안을 강화하는 방법이 있다.
