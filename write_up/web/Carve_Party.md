@@ -1,6 +1,6 @@
 # 문제 설명
 
-해당 문제는 하나의 `html` 파일로 이루어져있으며, 해당 `html` 파일을 로컬호스트로 랜더링하면 아래의 화면이 나온다.
+해당 문제는 하나의 `jack-o-lantern.html` 파일로 이루어져있으며, 해당 HTML 파일을 로컬호스트로 랜더링하면 아래의 화면이 나온다.
 
 <img width="706" alt="image" src="https://github.com/user-attachments/assets/0f0313e4-fc55-48dd-8e2f-313f564eaca4">
 
