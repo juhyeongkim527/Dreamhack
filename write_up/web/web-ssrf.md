@@ -103,7 +103,7 @@ def img_viewer():
 
 `GET` 메소드와 `POST` 메소드 요청을 처리하는 엔드페이지이다. 
 
-먼저 `GET` 요청이 발생하면 아래와 같은 `img_viewer.html` 파일을 랜더링해준다. `form`을 통해 `url`을 입력하고, 해당 `url`에 위치하는 이미지를 보여주는 화면으로 보인다.
+먼저 `GET` 요청이 발생하면 아래와 같은 `img_viewer.html` 파일을 렌더링해준다. `form`을 통해 `url`을 입력하고, 해당 `url`에 위치하는 파일을 이미지로 보여주는 화면으로 보인다.
 
 <img width="1038" alt="image" src="https://github.com/user-attachments/assets/b1f83cb2-1173-496c-96f5-eb2d0cd23d67">
 
@@ -122,11 +122,11 @@ query: 'query=1'
 fragment: 'fragment'
 ```
 
-그럼 다시 돌아와서 아래를 보면, `url`의 첫 번째 문자값이 `/` 인 경우, `url = "http://localhost:8000" + url`를 통해 `url`을 업데이트 해준다.
+그럼 다시 돌아와서 아래를 보면, `url`의 첫 번째 문자값이 `/` 인 경우, `url = "http://localhost:8000" + url`를 통해 로컬호스트에 입력 받은 `url` 주소를 붙여서 전체 `url`을 업데이트 해준다.
 
-그리고, `elif` 아래의 `try`에서 `requests.get` 메서드를 통해 해당 `url`에 `GET` 요청을 보내서 `content`를 가져온 후,
+그리고, 아래의 `try..except` 구문에서 `requests.get` 메서드를 통해 앞에서 업데이트해준 `url`에 `GET` 요청을 보내서, 요청의 응답으로 해당 URL 경로에 존재하는 파일을 `content`를 필드를 통해 가져온다.
 
-해당 파일을 `base64`로 인코딩한 후 `utf8`로 디코딩하여, `img_viewer.html` 파일에 인자로 전달해준 후 렌더링한다. 만약 에러가 발생한다면 `error.png`를 같은 방식으로 렌더링해준다.
+해당 파일을 `base64`로 인코딩한 후 `utf8`로 디코딩하여, `img_viewer.html` 파일에 인자로 전달해준 후 렌더링한다. 만약 에러가 발생한다면 `error.png`를 같은 방식으로 인자로 전달한 후 렌더링해준다.
 
 예를 들어, `placeholder` 에 입력되어 있던 값을 그대로 폼을 통해 전달하면 아래와 같이 이미지가 렌더링된다.
 
@@ -144,19 +144,21 @@ app.run(host="0.0.0.0", port=8000, threaded=True)
 
 그런데 `flask`에서는 따로 설정해주지 않는다면, `flag.txt`와 같은 정적 파일을 제공해주는 **Serving static file**을 지원하지 않는다.
 
-따라서, `/static/dream.png`나 `/error.png`는 `8000`번 포트의 로컬호스트에서 제공되도록 설정되었지만, `flag.txt`는 따로 설정되지 않았기 때문에 `GET` 요청을 보내도 해당 정적 파일을 가져올 수 없기 때문일 것이다.
+따라서, `/static/dream.png`나 `/error.png`는 `8000`번 포트의 로컬호스트에서 제공되도록 설정되었지만, `flag.txt`는 따로 설정되지 않았기 때문에 `GET` 요청을 보내도 해당 정적 파일을 가져올 수 없다.
 
-이 부분은 조금 더 공부해본 후 보완하자.
+이 부분은 다음에 조금 더 공부해본 후 보완해보면 좋을 것 같다.
 
-***그럼 다시 돌아와서*** 만약, `url`이 `/`으로 시작하지 않고, `netloc`에 `localhost` 또는 `127.0.0.1`과 같은 로컬 호스트 주소가 존재한다면, `error.png` 파일을 위와 같은 방식으로 렌더링해준다.
+***그럼 다시 돌아와서*** 만약, `url`이 `/`으로 시작하지 않고, `netloc`에 `localhost` 또는 `127.0.0.1`와 같은 로컬 호스트 주소가 존재한다면, `error.png` 파일을 위와 같은 방식으로 전달하여 페이지를 렌더링한다.
 
-예를 들어 아래와 같이 `http://localhost:8000/app/flag.txt`를 입력하면, `error.png`가 렌더링될 것이다.
+예를 들어 아래와 같이 `http://localhost:8000/app/flag.txt`를 입력하면, `error.png`가 전달되어 페이지가 렌더링될 것이다.
 
 <img width="1019" alt="image" src="https://github.com/user-attachments/assets/37641c27-91a6-4331-b83e-eebed11825d3">
 
-여기서 `netloc`에 `localhost`와 `127.0.0.1` 를 필터링 해주는 부분을 통해, 사용자가 웹 서버를 통해서만 접근할 수 있는 로컬호스트처럼 원하는 `url`로 `GET` 요청을 발생시켜서 임의의 파일을 읽어오게 하는 **SSRF** 취약점을 막는 것으로 보인다.
+**만약 이렇게 필터링 없이 이용자에게 입력 받은 `url`을 통해 로컬호스트로 HTTP 요청을 보내는 것이 허용된다면, 웹 서비스의 권한으로 내부망(로컬 호스트)에 HTTP 요청을 보내고 응답을 받아올 수 있게 되므로 `SSRF` 취약점이 존재하게 된다.**
 
-자세한 것은 아래의 `run_local_server`를 파악한 후 **취약점 분석**에서 다시 설명해보겠다.
+하지만 `netloc`에 `localhost`와 `127.0.0.1` 를 필터링 해주는 부분을 통해, 사용자가 웹 서버를 통해서만 접근할 수 있는 로컬호스트처럼 원하는 `url`로 `GET` 요청을 발생시켜서 임의의 파일을 읽어오게 하는 **SSRF** 취약점을 막게 된다.
+
+하지만 여기에도 취약점이 존재하는데, 자세한 것은 아래의 `run_local_server` 함수를 파악한 후 **취약점 분석** 파트에서 다시 설명해보겠다.
 
 ### 참고 : URL 필터링
 
@@ -190,15 +192,15 @@ def run_local_server():
 threading._start_new_thread(run_local_server, ()) # 다른 쓰레드로 `local_server`를 실행합니다.
 ```
 
-해당 부분을 잘 보면, 로컬 호스트로 `1500~1800` 번 중 랜덤한 `port` 번호를 고른 후, 파이썬의 기본 모듈인 `http`를 이용하여 **HTTP 서버**를 실행한다.
+해당 부분을 잘 보면, 로컬 호스트를 설정하고 `1500~1800` 번 중 랜덤한 `port` 번호를 고른 후, 파이썬의 기본 모듈인 `http`를 이용하여 **HTTP 서버**를 실행한다.
 
 `http.server.HTTPServer`의 두 번째 인자로 `http.server.SimpleHttpRequestHandler`를 전달하면, 
 
-앞에서 얘기했었던, 현재 디렉터리를 기준으로 **URL**이 가리키는 정적 리소스를 반환하는(**Serving static file**) 웹 서버가 생성된다.
+앞에서 얘기했었던, 현재 디렉터리를 기준으로 **URL**이 가리키는 경로에 존재하는 **정적 리소스를 반환하는(Serving static file) 웹 서버가 생성된다.**
 
-따라서 `8000` 포트가 아닌, 여기서 랜덤으로 설정한 포트를 통해 로컬호스트로 접속해서 URL에 원하는 파일을 입력해주면, 해당 파일을 가져올 수 있을 것이다.
+**따라서 `/img_viewer` 엔드포인트를 통해서, `8000` 포트가 아니라 여기서 랜덤으로 설정된 포트를 통해 로컬호스트에 HTTP 요청을 보내도록 필터링을 우회한 후, `url`에 원하는 파일의 경로를 입력해주면 해당 파일을 가져올 수 있을 것이다.**
 
-그런데, 로컬 호스트는 웹 서버가 아닌 외부에서는 접근할 수 없기 때문에 **SSRF** 취약점을 통해 내부 서버의 요청을 통해 접근해야 한다.
+당연히 나와 같은 일반 이용자가 바로 브라우저 URL을 통해서 로컬호스트에 접근하려고 해도, 웹 서비스의 로컬호스트는 외부에서는 접근할 수 없기 때문에 **SSRF** 취약점을 통해 **내부 서버의 요청을 통해** 접근해야 하는 것을 기억하자.
 
 # 취약점 분석
 
@@ -264,6 +266,10 @@ URL에서 호스트와 스키마(`http`)는 대소문자를 구분하지 않는�
 
 <img width="1032" alt="image" src="https://github.com/user-attachments/assets/a764a687-5a50-4c99-adb7-1545c4045348">
 
+또는, `http:/127.255:8000`을 전달해주면 `<img src>` 속성 값에 기본 템플릿이 `base.html` 파일의 내용이 base64 인코딩 + utf8 디코딩 되어 있는 것을 통해 확인해볼 수도 있다.
+
+참고로, 이건 `8000`번 포트로 접속하는 것이므로 정적 리소스를 반환하는 `local_server`의 반환 방식과는 다르다. (`local_server`의 반환 방식은 아래에서 설명)
+
 ## 랜덤한 포트 찾기
 
 정적 리소스를 반환해주는 `local_server`에서는 아래와 같은 코드를 통해 1500 ~ 1800 번 포트 중 랜덤한 포트로 로컬 서버를 열어주었다.
@@ -272,9 +278,9 @@ URL에서 호스트와 스키마(`http`)는 대소문자를 구분하지 않는�
 local_port = random.randint(1500, 1800)
 ```
 
-`8000`번에서는 `flag.txt` 파일을 반환하도록 설정해주지 않았기 때문에, 해당 웹 서버를 통해 `flag.txt` 파일을 반환받아야 하므로 해당 웹 서버의 포트 번호를 찾아야한다.
+`8000`번에서는 `flag.txt` 파일의 경로로 `GET` 요청을 보내도 해당 파일을 반환하도록 설정해주지 않았기 때문에, `local_server`를 통해 `flag.txt` 파일을 반환받아야 하기 때문에 해당 웹 서버의 포트 번호를 찾아야한다.
 
-랜덤으로 설정해준 포트 번호는, 아래와 같이 파이썬의 `requests` 모듈을 활용한 스크립트를 통해 알아낼 수 있다.
+랜덤으로 설정해준 포트 번호는, 아래와 같이 파이썬의 `requests` 모듈을 활용한 스크립트를 통해 알아낼 수 있다.
 
 ```
 import requests
@@ -311,9 +317,9 @@ if __name__ == "__main__":
 
 먼저, `NOTFOUND_IMG = "iVBORw0KG"` 를 통해 `"iVBORw0KG"` 라는 값을 저장해주는데, 이 값의 정체가 무엇인지 살펴보자.
 
-만약 `url`에 열려있지 않은 포트 번호를 전달하면, `try..except` 구문에서 exception이 발생하여 `error.png`이 렌더링된다.
+만약 `/img_viewer` 엔드포인트에서 `url`을 통해 로컬호스트로 열려있지 않은 포트 번호를 전달하면, `try..except` 구문에서 exception이 발생하여 `error.png`이 렌더링된다.
 
-`error.png` 파일을 base64로 인코딩한 후 utf8로 디코딩하면, 아래와 같이 `<img src>`로 전달되는 `data` 값에 `"iVBORw0KG"`가 포함되게 된다.
+`error.png` 파일을 base64로 인코딩한 후 utf8로 디코딩하면, 아래와 같이 `<img src>`의 속성 값으로 전달되는 `data` 값에 `"iVBORw0KG"`가 포함되게 된다.
 
 <img width="684" alt="image" src="https://github.com/user-attachments/assets/0732bcd4-0153-43aa-8020-db7e13f519db">
 
@@ -349,13 +355,13 @@ if __name__ == "__main__":
 
 그럼 해당 스크립트의 전체 과정을 다시 설명하면 아래와 같다.
 
-1. `main`에서 워게임 서버의 포트 번호를 커맨드라인을 통해 `chall_port`로 받아준 후, `chall_url`을 `/img_viewer` 엔드포인트로 설정
+1. `main`에서 워게임 서버 호스트의 포트 번호를 커맨드라인을 통해 `chall_port`로 받아준 후, `chall_url`을 `/img_viewer` 엔드포인트로 설정 (해당 엔드포인트에 `POST` Request를 위해)
 
 2. `find_port` 함수를 호출하여, 1500 ~ 1800 번 포트에 대해 반복문을 돌며, `/img_viewer`에 전달할 `url`을 `f"http://Localhost:{port}"`로 설정 (여기서 로컬호스트의 alias인 `Localhost`로 전달하여 필터링 우회)
 
-3. `send_img` 함수에 해당 `url`을 인자로 전달하여, `NOTFOUND_IMG`가 `send_img`의 반환값에 존재하지 않는다면, 설정한 포트 번호를 찾은 것이므로 `print` 후 `break
-
-4. `send_img` 함수에서는, 인자로 전달받은 `url`을 `data`로 설정하여, `/img_viewer` 엔드포인트에 `POST` 요청을 보낸 후 `response`에 `POST` 요청의 반환값을 저장
+3. `send_img` 함수에 해당 `url`을 인자로 전달하여, `NOTFOUND_IMG`가 `send_img`의 반환값에 존재하지 않는다면, 설정한 포트 번호를 찾은 것이므로 `print` 후 `break`
+    
+    - `send_img` 함수에서는 인자로 전달받은 `url`을 `data`로 설정하여, `/img_viewer` 엔드포인트에 `POST` 요청을 보낸 후 `response`에 `POST` 요청의 반환값을 저장
 
 해당 과정을 수행하는 스크립트를 실행하면 아래와 같이 `1675` 포트 번호를 찾을 수 있다.
 
@@ -384,6 +390,10 @@ http://Localhost:1675/flag.txt
 <img width="426" alt="image" src="https://github.com/user-attachments/assets/23ccb229-f8f5-438c-877f-7a921a839a07">
 
 <img width="634" alt="image" src="https://github.com/user-attachments/assets/5d051e36-1250-471e-ad41-3bccf6eb1d4a">
+
+참고로, 루프백 주소에서 `0`을 생략한 `http://127.255:1675/flag.txt`는 `error.png`가 랜더링되었는데 그 이유를 잘 모르겠다.
+
+`8000`번 포트에서는 해당 alias를 통해서도 접근이 정상적으로 가능했는데, `local_server`에서는 안되는 이유를 한번 찾아봐야겠다.
 
 # 마치며
 
