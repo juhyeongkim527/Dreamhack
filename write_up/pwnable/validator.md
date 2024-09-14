@@ -17,7 +17,15 @@ Hint: 서버 환경에 설치된 5.4.0 이전 버전의 커널에서는, NX Bit�
 
 따라서, `validator_dist`와 `validator_server` 바이너리를 분석하여 문제를 풀어야 한다.
 
-두 바이너리를 한번 실행해보면, 아래와 같이 입력을 받게 되고, 입력이 끝나면 바로 바이너리가 종료된다.
+---
+
+참고로, 아래에서도 설명하겠지만 `validator_server`는 **IDA**로 분석이 힘들고 `validator_dist`만 바로 분석이 가능하다.
+
+`dist`는 **Distribution**의 약자로 배포판을 의미하기 때문에, 이번 문제에서는 `dist`로 분석한 후 `server`에 해당 취약점으로 공격을 하면 같은 기법으로 공격이 가능하다.
+
+---
+
+그럼 이제 두 바이너리를 한번 실행해보면 아래와 같이 둘다 이용자에게 입력을 받은 후, 입력이 끝나면 바로 바이너리가 종료된다.
 
 <img width="653" alt="image" src="https://github.com/user-attachments/assets/de44fe89-2821-4131-a1dc-1ce37b22264f">
 
@@ -25,7 +33,7 @@ Hint: 서버 환경에 설치된 5.4.0 이전 버전의 커널에서는, NX Bit�
 
 <img width="556" alt="image" src="https://github.com/user-attachments/assets/976211c5-3cf3-42a3-8506-37c691fcc19e">
 
-먼저, 위는 `validator_dist` 바이너리의 `main` 함수를 디스어셈블한 결과이다.
+먼저, 위 이미지는 `validator_dist` 바이너리의 `main` 함수를 디스어셈블한 결과이다.
 
 <img width="491" alt="image" src="https://github.com/user-attachments/assets/6d74f02b-2cf3-4313-9c3a-90ef36c8e052">
 
@@ -47,7 +55,45 @@ Hint: 서버 환경에 설치된 5.4.0 이전 버전의 커널에서는, NX Bit�
 
 <img width="453" alt="image" src="https://github.com/user-attachments/assets/813132e8-0c25-4aaf-8bbc-a7b0b82638a4">
 
-그럼 이제, **IDA**를 통해 `validator_dist`와 `validator_server`를 정적 분석해보며 취약점을 분석해보고 Exploit을 설계해보자.
+그 이유는 `validator_server` 바이너리가 **stripped** 되어있기 때문이다.
+
+바이너리가 **stripped** 되어있다는 것은, 바이너리를 디버깅하기 위해 필요한 심볼 정보들이 제거되있다는 의미이다.
+
+`file` 명령어를 통해 `validator_dist`와 `validator_server`를 비교해보면 아래와 같이 마지막에 **stripped** 되어있는지 여부가 나온다.
+
+<img width="1355" alt="image" src="https://github.com/user-attachments/assets/63e7e3d2-6787-4007-93f9-fa01c37df91d">
+
+따라서, `validator_server`는 gdb를 통해 일반 바이너리들과 똑같은 방법으로 분석을 하기 힘들다.
+
+어쩌피 이번 문제에서는 `validator_dist` 배포판으로 분석한 후, 서버에 공격할 때는 똑같은 바이너리인 `validator_server`로 공격하면 되서 `validator_server` 자체를 로컬에서 분석할 필요는 없지만,
+
+만약 **stripped** 된 파일을 분석하기 위해서는 아래와 같은 명령어를 통해 **Entry point address**를 찾아서, 해당 주소에 breakpoint를 설정한 후,
+
+```
+readelf -a ./binary | more
+```
+
+`-a`는 바이너리의 모든 정보를 출력하는 옵션이며, `| more`은 출력 값이 너무 길어지는 것을 방지하기 위해 `more`으로 한 페이지 단위만 짤라서 먼저 보여주는 것이다. 
+
+<img width="812" alt="image" src="https://github.com/user-attachments/assets/4729be66-6813-4715-8b37-4cacca78d59b">
+
+<img width="233" alt="image" src="https://github.com/user-attachments/assets/9b8764ad-af28-4ca4-9218-23ece33cfcf7">
+
+이제 breakpoint 까지 실행을 해서 중단해보면, 아래와 같이 `main` 함수를 호출하기 위한 `__libc_start_main` 함수가 나온다.
+
+<img width="622" alt="image" src="https://github.com/user-attachments/assets/123a3dd6-2315-4368-a7ef-077a3089e897">
+
+`__libc_start_main`을 호출하기 전에 설정해주는 `rdi` 레지스터의 값이 `main` 함수의 주소를 가리키기 때문에,
+
+설정해준 `rdi` 값에 breakpoint를 걸고 `continue`를 해보면, `validator_dist`에서 본 `main`과 같은 함수가 실행되는 것을 알 수 있다.
+
+<img width="991" alt="image" src="https://github.com/user-attachments/assets/5ed357d9-66a1-4577-960e-f93ccb4073b2">
+
+따라서, 로컬에서 `validator_dist`만 분석한 후 서버에 공격할 때는 `validator_server` 바이너리를 공격하면 되겠다는 확신을 할 수 있다.
+
+참고로, **IDA**를 통해 **stripped**된 바이너리를 분석하는 것은 gdb와 달리 쉽지 않기 때문에, 다음에 한번 [링크](https://kimtruth.github.io/2021/06/27/stripped-PIE-tip/)를 참고해서 분석해보자.
+
+그럼 이제, **IDA**를 통해 `validator_dist`를 정적 분석해보며 취약점을 분석해보고 Exploit을 설계해보자.
 
 # `validtor_dist` 바이너리 분석
 
