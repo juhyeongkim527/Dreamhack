@@ -7,8 +7,8 @@ r2s 워게임에서는 첫째로 **return_address를 조작할 수 있었고**, 
 만약 해당 워게임에 취약점을 제거하려면 위의 3가지를 전부 제거하면 되는데, 첫번째 return_address는 canary를 통해 막을 수 있었지만, 나머지 두 취약점은 해결되지 않았기 때문에 만약 canary를 우회한다면 익스플로잇이 가능했다.  
 
 위 두가지 취약점을 막기 위해서,
-- 버퍼의 주소는 **ASLR(Address Space Layout Randomization)**을 통해 막고,
-- 버퍼에 쉘코드를 실행하는 것을 막기 위해서는 **NX( No-eXecute()**를 사용한다.
+- 버퍼의 주소는 **ASLR(Address Space Layout Randomization)** 을 통해 막고,
+- 버퍼에 쉘코드를 실행하는 것을 막기 위해서는 **NX(No-eXecute)** 를 사용한다.
 
 이번 글에서는 위 두가지 보호기법인 **ASLR**과 **NX**에 대해서 알아보자.
 
