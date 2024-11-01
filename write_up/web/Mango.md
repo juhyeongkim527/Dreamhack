@@ -139,7 +139,7 @@ Document를 제대로 찾아서 `result`에 대입한 경우, `uid` 필드에 �
 
 <img width="472" alt="image" src="https://github.com/user-attachments/assets/6b8c176f-1863-48d5-81e4-c2560ea1bf84">
 
-아래와 같이 `http://host3.dreamhack.games:18127/login?uid=admin&upw=` URL로 GET 요청을 전달하면 `"admin"` 문자열 때문에 필터링에 걸려서 아래와 같이 출력되는 것을 확인할 수 있다.
+아래와 같이 `http://host3.dreamhack.games:18127/login?uid=admin&upw=` URL로 GET 요청을 전달하면 `"admin"` 문자열 때문에 필터링에 걸려서 아래와 같이 출력되는 것을 확인할 수 있다.
 
 <img width="575" alt="image" src="https://github.com/user-attachments/assets/4a368da9-0ff7-416a-ac57-b29eaccb76ea">
 
