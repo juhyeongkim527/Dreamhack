@@ -93,28 +93,7 @@ def ping():
 
 폼의 입력 형식이 지정되어 있는 것 같아서, `ping.html`을 살펴보니 아래와 같이 `pattern="[A-Za-z0-9.]{5,20}"`을 통해 폼의 입력 형식이 지정되어 있었다.
 
-```
-{% extends "base.html" %}
-{% block title %}ping{% endblock %}
-
-{% block head %}
-  {{ super() }}
-{% endblock %}
-
-{% block content %}
-<h1>Let's ping your host</h1><br/>
-<form method="POST">
-  <div class="row">
-    <div class="col-md-6 form-group">
-      <label for="Host">Host</label>
-      <input type="text" class="form-control" id="Host" placeholder="8.8.8.8" name="host" pattern="[A-Za-z0-9.]{5,20}" required>
-    </div>
-  </div>
-
-  <button type="submit" class="btn btn-default">Ping!</button>
-</form>
-{% endblock %}
-```
+<img width="1152" alt="image" src="https://github.com/user-attachments/assets/fb17bf2c-3c1c-4fed-bb23-674f19491f1a">
 
 따라서, 입력 형식인 `알파벳 대문자 || 알파벳 소문자 || 0~9 || . && 5 ~ 20자`를 지키며 어떻게 입력할지 생각해봐야한다.
 
