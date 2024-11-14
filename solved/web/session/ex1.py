@@ -1,6 +1,6 @@
 import requests
 
-url = 'http://host3.dreamhack.games:13016/'
+url = 'http://host3.dreamhack.games:23186/'
 cookies = {
 }
 
