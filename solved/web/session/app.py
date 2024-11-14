@@ -17,6 +17,7 @@ users = {
 session_storage = {
 }
 
+
 @app.route('/')
 def index():
     session_id = request.cookies.get('sessionid', None)
@@ -26,6 +27,7 @@ def index():
         return render_template('index.html')
 
     return render_template('index.html', text=f'Hello {username}, {"flag is " + FLAG if username == "admin" else "you are not admin"}')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -39,12 +41,13 @@ def login():
         except:
             return '<script>alert("not found user");history.go(-1);</script>'
         if pw == password:
-            resp = make_response(redirect(url_for('index')) )
+            resp = make_response(redirect(url_for('index')))
             session_id = os.urandom(4).hex()
             session_storage[session_id] = username
             resp.set_cookie('sessionid', session_id)
-            return resp 
+            return resp
         return '<script>alert("wrong password");history.go(-1);</script>'
+
 
 if __name__ == '__main__':
     import os
