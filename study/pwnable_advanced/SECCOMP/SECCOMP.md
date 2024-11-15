@@ -503,4 +503,244 @@ int sandbox()
 }
 ```
 
-먼저, `sandbox` 함수에서는 `filter`에 
+먼저, `sandbox` 함수에서는 `filter` 라는 `struct sock_filter` 타입의 배열을 선언한다. `struct sock_filter`는 BPF에서 네트워크 필터링을 위해 사용되는 구조체인데, 여기서는 시스템 콜 필터링을 위해 사용된다고 보면 된다.
+
+```c
+struct sock_filter {	/* Filter block */
+	__u16	code;   /* Actual filter code */
+	__u8	jt;	    /* Jump true */
+	__u8	jf;	    /* Jump false */
+	__u32	k;      /* Generic multiuse field */
+};
+
+struct sock_fprog {	/* Required for SO_ATTACH_FILTER. */
+	unsigned short		len;	/* Number of filter blocks */
+	struct sock_filter *filter;
+};
+```
+
+`code`에는 필터링 시 수행할 코드가 들어가고, `jt`, `jf`에는 `code`가 `BPF_JMP`와 같은 점프 명령어인 경우 true, false에 따라 이동할 offset이 저장된다. 그리고 `k`에는 필터 명령어에 사용되는 상수 값이 저장되는데, 예를 들어 시스템 콜 번호나 주소 참조 값들이 들어갈 수 있다.
+
+`filter`에 여러 매크로가 저장되는 방식을 이해하기 위해 위에서 살펴본 BPF 매크로가 `filter`의 배열 원소에 들어가게 되면 어떻게 저장될지, 아래의 매크로 정의를 살펴보자.
+
+```c
+/*
+ * Macros for filter block array initializers.
+ */
+#ifndef BPF_STMT
+#define BPF_STMT(code, k) { (unsigned short)(code), 0, 0, k }
+#endif
+#ifndef BPF_JUMP
+#define BPF_JUMP(code, k, jt, jf) { (unsigned short)(code), jt, jf, k }
+#endif
+```
+
+앞에서 봤던 BPF 매크로는, 위와 같이 정의되어 있고, `{}`를 통해 구조체 초기화를 진행한다. 위 코드를 보면 `{}` 내부의 멤버가 차례대로 `struct sock_filter`에 어떻게 저장되는지 이해할 수 있을 것이다.
+
+그럼 이제 `sandbox()` 함수의 `filter` 배열에는 여러 매크로가 들어가는데, 차례대로 살펴보자.
+
+```c
+/* Validate architecture. */
+BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr),
+```
+
+`BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr)`는 레지스터(accumulator)에 `arch_nr`에 대한 값을 로드해오는 매크로이다. 참고로 `BPF_LD + BPF_W + BPF_ABS`는 BPF 명령어를 하나로 합쳐서 실행하는 조합을 나타낸다.
+
+`BPF_W`는 데이터를 Word 단위(4bytes)로 가져오겠다는 의미이고, `BPF_ABS`는 특정 주소로부터 절대 오프셋을 적용한 주소에서 데이터를 가져오겠다는 의미이다.
+
+따라서 `BPF_STMT`에 전달된 `operand` 인자 값은 `arch_nr`이므로 `BPF_ABS`에 의해 `arch_nr` 값 자체를 가져오는게 아니라 `arch_nr`에 저장된 절대 오프셋을 통해 구한 주소로부터 데이터를 4바이트 단위로 가져와서 레지스터에 로드한다는 의미이다.
+
+```c
+#define arch_nr (offsetof(struct seccomp_data, arch))
+```
+
+`arch_nr`은 위와 같은 매크로로 정의되어 있는데, `struct seccomp_data`에서 `arch` 멤버의 오프셋의 주소를 나타낸다. 참고로 앞에서도 설명했듯이 `struct seccomp_data`는 현재 수행중인 시스템 콜의 정보를 담고 있는 구조체이며, `struct seccomp_data`의 변경에 따라 바뀔 수 있지만, 아래의 구조체에서 이 값은 항상 4일 것이다.
+
+100퍼센트 확신은 못하겠지만, 아마 해당 필터링이 실행될 때 `seccomp_data`로부터 4만큼 떨어진 오프셋에 존재하는 데이터인 `arch`를 레지스터에 로드해온다는 의미로 이해하고 있다.
+
+```c
+/**
+ * struct seccomp_data - the format the BPF program executes over.
+ * @nr: the system call number
+ * @arch: indicates system call convention as an AUDIT_ARCH_* value
+ *        as defined in <linux/audit.h>.
+ * @instruction_pointer: at the time of the system call.
+ * @args: up to 6 system call arguments always stored as 64-bit values
+ *        regardless of the architecture.
+ */
+struct seccomp_data {
+	int nr;
+	__u32 arch;
+	__u64 instruction_pointer;
+	__u64 args[6];
+};
+```
+
+그리고 아래의 코드를 통해 만약 해당 accumulate에 저장된 값이 **x86-64** 아키텍처를 나타내는 `ARCH_NR`와 같다면, `SECCOMP_RET_KILL`을 리턴하지 않고 다음 코드로 넘어가며, 아닌 경우 프로그램이 종료된다.
+
+```c
+#define arch_nr (offsetof(struct seccomp_data, arch))
+...
+BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ARCH_NR, 1, 0),
+BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL),
+```
+
+그리고 아래 코드를 보면 먼저 레지스터에 `syscall_nr`을 로드해준 후, `ALLOW_SYSCALL` 매크로를 호출한 후 마지막에 `KILL_PROCESS`를 호출해준다.
+
+```c
+#define syscall_nr (offsetof(struct seccomp_data, nr))
+...
+BPF_STMT(BPF_LD + BPF_W + BPF_ABS, syscall_nr),
+/* List allowed syscalls. */
+ALLOW_SYSCALL(rt_sigreturn),
+ALLOW_SYSCALL(open),
+ALLOW_SYSCALL(openat),
+ALLOW_SYSCALL(read),
+ALLOW_SYSCALL(write),
+ALLOW_SYSCALL(exit_group),
+KILL_PROCESS,
+```
+
+각 매크로는 아래와 같다.
+
+```c
+#define ALLOW_SYSCALL(name)                               \
+  BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_##name, 0, 1), \
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW)
+#define KILL_PROCESS BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL)
+```
+
+`ALLOW_SYSCALL(name)` 매크로는 레지스터에 설정된 값이 `__NR_##name`과 같다면 다음 코드인 `BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW);`로 이동하고, 아니면 한줄을 건너뛰고 다음 코드로 이동한다.
+
+`sandbox()` 코드에서 `ALLOW_SYSCALL(rt_sigreturn)`을 호출하기 전 `BPF_STMT(BPF_LD + BPF_W + BPF_ABS, syscall_nr)`를 호출해줬기 때문에 레지스터에는 현재 시스템 콜 번호를 나타내는 `syscall_nr`이 저장되어 있을 것이다.
+
+따라서 현재 시스템 콜 번호가 `ALLOW_SYSCALL(rt_sigreturn)`에서 받은 `__NR_rt_sigreturn`과 같다면, 바로 `SECCOMP_RET_ALLOW`를 수행하며 `filter`의 다음 원소에 연속적으로 나오는 필터링 코드인 `ALLOW_SYSCALL(open)`을 호출하지 않고 바로 정상적으로 해당 루틴을 벗어나도록 리턴된다.
+
+만약 다른 경우, 계속 연속적인 `ALLOW_SYSCALL(name)`을 호출하고 마지막에 존재하는 `ALLOW_SYSCALL(exit_group)`도 만족하지 않는다면 `KILL_PROCESS` 매크로를 호출하여 프로그램이 `SECCOMP_RET_KILL`을 호출하며 종료된다.
+
+**결국 해당 `filter`에 지정된 필터링 코드는 먼저 현재 아키텍처가 x86-64인지 확인하고, 현재 호출한 시스템 콜 번호가 `ALLOW_SYSCALL(name)`으로 허용해준 시스템 콜에 속하지 않은 경우 프로그램을 종료하는 루틴이다.**
+
+`sandbox()` 함수의 나머지 부분은 전부 앞에서 정의해준 `filter`를 필터링 코드로 규칙을 등록해주고, 시스템 콜이 호출되었을 때 해당 필터링 코드가 수행해주도록 하는 부분이다.
+
+따라서, 아래와 같이 `main`에서 `argc`가 2보다 작은 경우만 `ALLOW_SYSCALL(fork)`가 존재하지 않기 때문에 필터링 코드에서 `KILL_PROCESS` 매크로까지 넘어가서 프로그램이 종료되고, 
+
+2보다 큰 경우 `"/bin/sh"` 파일의 내용을 `read`하고 `write`하는 정상적인 루틴을 가질 수 있을 것이다.
+
+```shell
+$ ./secbpf_alistBad system call (core dumped)
+$ ./secbpf_alist 1ELF> J@X?@8	@@@?888h?h? P?P?!
+```
+
+<br>
+
+#### DENY LIST
+
+```c
+// Name: secbpf_dlist.c
+// Compile: gcc -o secbpf_dlist secbpf_dlist.c
+#include <fcntl.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <linux/unistd.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+
+#define DENY_SYSCALL(name)                                  \
+    BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_##name, 0, 1), \
+        BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL)
+#define MAINTAIN_PROCESS BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW)
+#define syscall_nr (offsetof(struct seccomp_data, nr))
+#define arch_nr (offsetof(struct seccomp_data, arch))
+/* architecture x86_64 */
+#define ARCH_NR AUDIT_ARCH_X86_64
+
+int sandbox()
+{
+    struct sock_filter filter[] = {
+        /* Validate architecture. */
+        BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr),
+        BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ARCH_NR, 1, 0),
+        BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL),
+        /* Get system call number. */
+        BPF_STMT(BPF_LD + BPF_W + BPF_ABS, syscall_nr),
+        /* List allowed syscalls. */
+        DENY_SYSCALL(open),
+        DENY_SYSCALL(openat),
+        MAINTAIN_PROCESS,
+    };
+    
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+        .filter = filter,
+    };
+    
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1)
+    {
+        perror("prctl(PR_SET_NO_NEW_PRIVS)\n");
+        return -1;
+    }
+    
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1)
+    {
+        perror("Seccomp filter error\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    char buf[256];
+    int fd;
+    memset(buf, 0, sizeof(buf));
+    
+    sandbox();
+    
+    fd = open("/bin/sh", O_RDONLY);
+    read(fd, buf, sizeof(buf) - 1);
+    write(1, buf, sizeof(buf));
+    return 0;
+}
+```
+
+DENY LIST도 앞에서 살펴본 ALLOW LIST와 거의 동일한 논리로 구현된다.
+
+```c
+#define DENY_SYSCALL(name)                                \
+  BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_##name, 0, 1), \
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL)
+#define MAINTAIN_PROCESS BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW)
+```
+
+여기서는 해당 매크로 함수만 반대로 구현되어 있는데, `DENY_SYSCALL(name)`의 `__NR_##name`과 `syscall_nr`이 동일할 경우, `BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL)`를 통해 프로세스가 종료된다.
+
+그리고, `filter` 배열의 필터링 코드 루틴에서 `DENY_SYSCALL(name)`를 전부 탈출하면 마지막에 `MAINTAIN_PROCESS`가 호출되어, `SECCOMP_RET_ALLOW`이 리턴되어 루틴이 정상적으로 종료되도록 구현되어 있다.
+
+따라서 `main`에서 `open` 시스템 콜을 호출하면 `DENY_SYSCALL(open)` 루틴에 걸려서 아래와 같이 프로그램이 종료될 것이다.
+
+```shell
+$ ./secbpf_dlist
+Bad system call (core dumped)
+```
+
+## seccomp-tools
+
+SECCOMP 규칙이 위 예제와 달리 매우 복잡할 경우, 소스 코드가 존재한다면 직관적인 BPF 문법 덕분에 이해하는데에 매우 오랜 시간이 걸리지는 않겠지만, 컴파일 된 이후 바이너리를 분석할 때에는 일일히 바이트코드를 변환해야 하기 때문에 매우 어려울 수 있다.
+
+따라서 이러한 경우 **seccomp-tools**를 사용하면 SECCOMP가 적용된 바이너리 분석에 도움을 받을 수 있고, BPF 어셈블리/디스어셈블러도 제공하기 때문에 유용한 도구로 사용할 수 있다.
+
+설치를 위한 명령어는 아래와 같으며, [깃허브 링크](https://github.com/david942j/seccomp-tools)에서 자세한 내용과 설명을 확인할 수 있다.
+
+```shell
+$ sudo apt-get update
+$ sudo apt install gcc ruby-dev
+$ sudo gem install seccomp-tools
+```
+
+seccomp-tools의 사용과 이에 대한 설명은 다음 글에서 이어가도록 하겠다.
