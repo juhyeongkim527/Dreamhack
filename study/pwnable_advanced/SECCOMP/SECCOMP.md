@@ -73,7 +73,7 @@ int __secure_computing(const struct seccomp_data *sd) {
 
 참고로, `sigreturn`은 리눅스 커널에서 시그널 처리 루틴이 끝난 후 원래의 실행 흐름으로 복귀하는 시스템 콜이다.
 
-STRICT_MODE는 매우 제한된 시슽메 콜의 호출만을 허용하기 때문에, 다양한 기능을 수행하는 일반적인 애플리케이션에는 적용할 수 없다.
+STRICT_MODE는 매우 제한된 시스템 콜의 호출만을 허용하기 때문에, 다양한 기능을 수행하는 일반적인 애플리케이션에는 적용할 수 없다.
 
 ```c
 // Name: strict_mode.c
@@ -101,7 +101,7 @@ int main() {
 }
 ```
 
-위 코드는 `prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT);`를 통해 STRICT_MODE를 적용한 예제 코드이다.
+위 코드는 `prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT);`를 통해 STRICT_MODE를 적용한 예제 코드이다. `prctl`은 프로세스의 특성이나 규칙을 관리하는 데 사용되는 시스템 콜이다.
 
 따라서 해당 프로그램을 실행했을 때, `open` 시스템 콜의 호출은 허용되지 않기 때문에, 아래와 같이 `write` 시스템 콜의 호출 이후 프로그램이 `SIGKILL`을 발생시키며 종료하게 된다.
 
@@ -351,7 +351,7 @@ BPF는 VM인만큼 다양한 명령어와 타입이 존재하는데, SECCOMP를 
 BPF_STMT(opcode, operand)
 ```
 
-`opcode`에는 앞에서 봤듯이 수행하고 싶은 BPF 명령어(`BPF_LD`, `BPF_JMP` 등)를 지정할 수 있고, `operand`에는 `opcode`에서 사용할 값이나 인자를 지정할 수 있다. `opcode`는 인자로 전달된 값에서 몇 번째 인덱스에서 몇 바이트를 가져올 것인지도 지정할 수 있다.
+`opcode`에는 앞에서 봤듯이 수행하고 싶은 BPF 명령어(`BPF_LD`, `BPF_JMP` 등)를 지정할 수 있고, `operand`에는 `opcode`에서 사용할 값이나 인자를 지정할 수 있다. `opcode`는 인자로 전달된 값에서 몇 번째 인덱스에서 몇 바이트를 가져올 것인지도 지정할 수 있다.
 
 예를 들어, `BPF_STMT(BPF_LD, 0);` 코드는 `BPF_LD` 명령어를 수행하여 Accumulator에 `0` 값을 복사한다.
 
@@ -456,11 +456,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-위 코드를 로직에 따라 분석해보면 아래와 같다.
-
-<br>
-
-##### 1. int sandbox()
+위 코드를 로직에 따라 `main`에서 처음 호출하는 `sandbox` 함수부터 순차적으로 분석해보면 아래와 같다.
 
 ```c
 int sandbox()
@@ -554,7 +550,9 @@ BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr),
 #define arch_nr (offsetof(struct seccomp_data, arch))
 ```
 
-`arch_nr`은 위와 같은 매크로로 정의되어 있는데, `struct seccomp_data`에서 `arch` 멤버의 오프셋의 주소를 나타낸다. 참고로 앞에서도 설명했듯이 `struct seccomp_data`는 현재 수행중인 시스템 콜의 정보를 담고 있는 구조체이며, `struct seccomp_data`의 변경에 따라 바뀔 수 있지만, 아래의 구조체에서 이 값은 항상 4일 것이다.
+`arch_nr`은 위와 같은 매크로로 정의되어 있는데, `struct seccomp_data`에서 `arch` 멤버의 오프셋의 주소를 나타낸다. 
+
+참고로 앞에서도 설명했듯이 `struct seccomp_data`는 현재 수행중인 시스템 콜의 정보를 담고 있는 구조체이며, `struct seccomp_data`의 변경에 따라 바뀔 수 있지만, 아래의 구조체에서 이 값은 항상 4일 것이다.
 
 100퍼센트 확신은 못하겠지만, 아마 해당 필터링이 실행될 때 `seccomp_data`로부터 4만큼 떨어진 오프셋에 존재하는 데이터인 `arch`를 레지스터에 로드해온다는 의미로 이해하고 있다.
 
