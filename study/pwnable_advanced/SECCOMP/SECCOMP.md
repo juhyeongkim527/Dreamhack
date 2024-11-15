@@ -180,17 +180,23 @@ static void __secure_computing_strict(int this_syscall) {
 
 <br>
 
-### 2. FILTER_MODE
+### 2-1. FILTER_MODE : seccomp 라이브러리
 
 샌드박스에서 말했던 Allow list와 Deny list를 FILTER_MODE에서 구현할 수 있다.
 
-해당 모드에서는 두 list를 통해 원하는 시스템 콜을 허용하거나, 거부할 수 있다. 해당 모드를 적용한 예제 코드를 이해하기 위해서는 아래의 함수를 알아야 한다.
+해당 모드에서는 두 list를 통해 원하는 시스템 콜을 허용하거나, 거부할 수 있다. 해당 모드를 적용한 예제 코드를 이해하기 위해서는 아래의 `seccomp` 라이브러리 관련 함수를 알아야 한다.
 
 | 함수명            | 설명                                                         |
 |-------------------|--------------------------------------------------------------|
 | `seccomp_init`     | SECCOMP 모드의 기본 값을 설정하는 함수이다. 임의의 시스템 콜이 호출되면 이에 해당하는 이벤트가 발생한다. |
 | `seccomp_rule_add` | SECCOMP의 규칙을 추가하는 함수이다. 임의의 시스템 콜을 허용하거나 거부할 수 있다. |
 | `seccomp_load`     | 앞서 적용한 규칙을 애플리케이션에 반영하는 함수이다.                |
+
+`seccomp` 설치 명령어는 아래와 같다.
+
+```shell
+apt install libseccomp-dev libseccomp2 seccomp
+```
 
 <br>
 
@@ -270,26 +276,231 @@ ELF> J@X?@8	@@@?888h?h? P?P?!
 
 #### DENY LIST
 
+```c
+// Name: libseccomp_dlist.c
+// Compile: gcc -o libseccomp_dlist libseccomp_dlist.c -lseccomp
 
+#include <fcntl.h>
+#include <seccomp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <unistd.h>
 
+void sandbox() {
+  scmp_filter_ctx ctx;
+  ctx = seccomp_init(SCMP_ACT_ALLOW);
 
+  if (ctx == NULL) {
+    exit(0);
+  }
 
+  seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(open), 0);
+  seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(openat), 0);
+  seccomp_load(ctx);
+}
 
+int main(int argc, char *argv[]) {
+  char buf[256];
+  int fd;
+  memset(buf, 0, sizeof(buf));
 
+  sandbox();
 
+  fd = open("/bin/sh", O_RDONLY);
+  read(fd, buf, sizeof(buf) - 1);
+  write(1, buf, sizeof(buf));
+}
+```
 
+위 코드는 `seccomp.h` 라이브러리의 함수를 사용하여 지정한 시스템 콜을 호출하지 못하도록 하는 예제 코드이다.
 
+ALLOW LIST의 방법과 유사하게 `sandbox()` 함수를 보면, 먼저 `ctx = seccomp_init(SCMP_ACT_ALLOW);` 를 통해 모든 시스템 콜의 호출을 허용한다.
 
+이후, `seccomp_rule_add` 함수를 통해 원하는 시스템 콜을 호출하지 못하도록 규칙을 설정해준 후 `seccomp_load(ctx);`를 통해 규칙을 적용시켜준다.
 
+`main` 함수를 보면, `sandbox();` 함수를 호출해주기 때문에 위에서 설정해준 DENY LIST 규칙이 설정될 것이고 이에 따라 `read` 시스템 콜을 호출하면 프로세스가 `SIGKILL` 시그널과 함께 종료될 것이다.
 
+<br>
 
+### 2-2. FILTER_MODE : BPF
 
+앞에서까지 `seccomp` 라이브러리를 사용하여 Allow list와 Deny list를 구현하는 방법을 알아보았다. 라이브러리 대신 **BPF(Berkeley Packet Filter)** 를 사용해서도 이를 구현할 수 있다.
 
+BPF는 커널에서 지원하는 **Virtual Machine(VM)** 으로, 본래에는 네트워크 패킷을 분석하고 필터링하는 목적으로 사용되었다.
 
+이는 **임의 데이터를 비교하고, 결과에 따라 특정 구문으로 분기하는 명령어**를 제공한다. 
 
+라이브러리 함수를 통해 규칙을 정의한 것과 같이 특정 시스템 콜 호출 시에 어떻게 처리할지 명령어를 통해 구현할 수 있다.
 
+BPF는 VM인만큼 다양한 명령어와 타입이 존재하는데, SECCOMP를 적용하는데에 있어 꼭 알아둬야 하는 명령어가 아래에 존재한다.
 
+| 명령어    | 설명                                                                                       |
+|-----------|--------------------------------------------------------------------------------------------|
+| `BPF_LD`  | 인자로 전달된 값을 Accumulator에 복사한다. 이를 통해 값을 복사한 후 비교 구문에서 해당 값을 비교할 수 있다. |
+| `BPF_JMP` | 지정한 위치로 분기한다.                                                                   |
+| `BPF_JEQ` | 설정한 비교 구문이 일치할 경우 지정한 위치로 분기한다.                                      
+| `BPF_RET` | 인자로 전달된 값을 반환한다.                                                              |
 
+그리고 아래와 같이, BPF 코드를 직접 입력하지 않고 편리하게 원하는 코드를 실행할 수 있게끔 매크로가 존재한다.
 
+##### 1.
 
+```c
+BPF_STMT(opcode, operand)
+```
 
+`opcode`에는 앞에서 봤듯이 수행하고 싶은 BPF 명령어(`BPF_LD`, `BPF_JMP` 등)를 지정할 수 있고, `operand`에는 `opcode`에서 사용할 값이나 인자를 지정할 수 있다. `opcode`는 인자로 전달된 값에서 몇 번째 인덱스에서 몇 바이트를 가져올 것인지도 지정할 수 있다.
+
+예를 들어, `BPF_STMT(BPF_LD, 0);` 코드는 `BPF_LD` 명령어를 수행하여 Accumulator에 `0` 값을 복사한다.
+
+##### 2.
+
+```c
+BPF_JUMP(opcode, operand, true_offset, false_offset)
+```
+
+해당 매크로는 `opcode`에 수행할 명령어를 지정하고, 해당 명령어를 `operand`에 존재하는 값과 비교하여 결과에 따라 `true_offset` 또는 `false_offset`으로 분기하는 매크로이다. 
+
+예를 들어, `BPF_JUMP(BPF_JEQ, 0x10, 2, 1);` 는 `BPF_LD`를 통해서 Accumulator에 복사해준 값과 0x10을 비교하여 true인지 false인지 여부에 따라서 `2` 또는 `1` 오프셋으로 분기하는 매크로이다.
+
+대부분 해당 매크로의 `opcode`에는 위와 같이 `BPF_JGT`, `BPF_JGE`와 같은 분기 명령어가 사용된다.
+
+그럼 이제 BPF를 통해 어떻게 Allow list와 Deny list를 구현할 수 있는지 살펴보자.
+
+<br>
+
+#### ALLOW LIST
+
+```c
+// Name: secbpf_alist.c
+// Compile: gcc -o secbpf_alist secbpf_alist.c
+#include <fcntl.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <linux/unistd.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+
+#define ALLOW_SYSCALL(name)                               \
+  BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_##name, 0, 1), \
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW)
+#define KILL_PROCESS BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL)
+#define syscall_nr (offsetof(struct seccomp_data, nr))
+#define arch_nr (offsetof(struct seccomp_data, arch))
+
+/* architecture x86_64 */
+#define ARCH_NR AUDIT_ARCH_X86_64
+
+int sandbox()
+{
+  struct sock_filter filter[] = {
+      /* Validate architecture. */
+      BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr),
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ARCH_NR, 1, 0),
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL),
+      /* Get system call number. */
+      BPF_STMT(BPF_LD + BPF_W + BPF_ABS, syscall_nr),
+      /* List allowed syscalls. */
+      ALLOW_SYSCALL(rt_sigreturn),
+      ALLOW_SYSCALL(open),
+      ALLOW_SYSCALL(openat),
+      ALLOW_SYSCALL(read),
+      ALLOW_SYSCALL(write),
+      ALLOW_SYSCALL(exit_group),
+      KILL_PROCESS,
+  };
+
+  struct sock_fprog prog = {
+      .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+      .filter = filter,
+  };
+
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1)
+  {
+    perror("prctl(PR_SET_NO_NEW_PRIVS)\n");
+    return -1;
+  }
+
+  if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1)
+  {
+    perror("Seccomp filter error\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+void banned() { fork(); }
+
+int main(int argc, char *argv[])
+{
+  char buf[256];
+  int fd;
+  memset(buf, 0, sizeof(buf));
+  sandbox();
+  if (argc < 2)
+  {
+    banned();
+  }
+  fd = open("/bin/sh", O_RDONLY);
+  read(fd, buf, sizeof(buf) - 1);
+  write(1, buf, sizeof(buf));
+  return 0;
+}
+```
+
+위 코드를 로직에 따라 분석해보면 아래와 같다.
+
+<br>
+
+##### 1. int sandbox()
+
+```c
+int sandbox()
+{
+  struct sock_filter filter[] = {
+      /* Validate architecture. */
+      BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arch_nr),
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ARCH_NR, 1, 0),
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL),
+      /* Get system call number. */
+      BPF_STMT(BPF_LD + BPF_W + BPF_ABS, syscall_nr),
+      /* List allowed syscalls. */
+      ALLOW_SYSCALL(rt_sigreturn),
+      ALLOW_SYSCALL(open),
+      ALLOW_SYSCALL(openat),
+      ALLOW_SYSCALL(read),
+      ALLOW_SYSCALL(write),
+      ALLOW_SYSCALL(exit_group),
+      KILL_PROCESS,
+  };
+
+  struct sock_fprog prog = {
+      .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+      .filter = filter,
+  };
+
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1)
+  {
+    perror("prctl(PR_SET_NO_NEW_PRIVS)\n");
+    return -1;
+  }
+
+  if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1)
+  {
+    perror("Seccomp filter error\n");
+    return -1;
+  }
+
+  return 0;
+}
+```
+
+먼저, `sandbox` 함수에서는 `filter`에 
