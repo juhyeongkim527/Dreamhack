@@ -35,20 +35,24 @@ int sandbox()
         DENY_SYSCALL(openat),
         MAINTAIN_PROCESS,
     };
+
     struct sock_fprog prog = {
         .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
         .filter = filter,
     };
+
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1)
     {
         perror("prctl(PR_SET_NO_NEW_PRIVS)\n");
         return -1;
     }
+
     if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1)
     {
         perror("Seccomp filter error\n");
         return -1;
     }
+
     return 0;
 }
 
@@ -57,7 +61,9 @@ int main(int argc, char *argv[])
     char buf[256];
     int fd;
     memset(buf, 0, sizeof(buf));
+
     sandbox();
+
     fd = open("/bin/sh", O_RDONLY);
     read(fd, buf, sizeof(buf) - 1);
     write(1, buf, sizeof(buf));
