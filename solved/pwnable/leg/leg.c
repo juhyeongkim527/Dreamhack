@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <fcntl.h>
+
 int key1()
 {
 	asm("mov r3, pc\n");
 }
+
 int key2()
 {
 	asm(
@@ -18,10 +20,12 @@ int key2()
 		".code	32\n"
 		"pop	{r6}\n");
 }
+
 int key3()
 {
 	asm("mov r3, lr\n");
 }
+
 int main()
 {
 	int key = 0;
